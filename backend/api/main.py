@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 
 import operational  # noqa: F401  -- registers the deferred operational EnergyModel (Act 2)
+import verticals.energy  # noqa: F401  -- registers the EnergySuitabilityModel (the product)
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -19,6 +20,7 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.config import get_settings
+from api.suitability import router as suitability_router
 from operational.assess import router as operational_router
 
 settings = get_settings()
@@ -33,6 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(suitability_router)
 app.include_router(operational_router)
 
 
