@@ -371,3 +371,17 @@
   left: auto;
   right: 24px;
 }
+
+.offshore {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.75;
+  cursor: pointer;
+}
+.offshore input {
+  cursor: pointer;
+  accent-color: #4ed6ff;
+}

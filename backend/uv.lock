@@ -64,6 +64,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "fastapi" },
+    { name = "global-land-mask" },
     { name = "httpx" },
     { name = "numpy" },
     { name = "pandas" },
@@ -83,6 +84,7 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.105.2" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "global-land-mask", specifier = ">=1.0.0" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "numpy", specifier = ">=2.4.6" },
     { name = "pandas", specifier = ">=3.0.3" },
@@ -199,6 +201,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/81/2d/ff8d91d7b564d464629a0fd50a4489c97fcb836ac230bf3a7269232a9b1f/fastapi-0.136.3.tar.gz", hash = "sha256:e487fae93ad408e6f47641ee4dfe389864fd7bec92e547ea8498fc13f43e83ab", size = 396410, upload-time = "2026-05-23T18:53:15.192Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e0/82/45359b62a067409bd929ae8a56b8ed13e5a8c8a61194b3c236920999ab83/fastapi-0.136.3-py3-none-any.whl", hash = "sha256:3d2a69bdf04b7e9f3afa292c3bc7a98816bbfafa10bc9b45f3f3700d2f761620", size = 117481, upload-time = "2026-05-23T18:53:16.924Z" },
+]
+
+[[package]]
+name = "global-land-mask"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/cd/d06fe252cbe41b85c7a1a54e4d4214c79b770eb5d6c6fa3b03e56371a6da/global-land-mask-1.0.0.tar.gz", hash = "sha256:956bf02e8b05bfc9f3a29cbc6e97d5ba4151c0732504acc73c2db9ea325ecff3", size = 1825546, upload-time = "2020-10-05T13:15:30.119Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/e9/eaac67e39b68f64828a164f8dbfcf13baccd7382704ea120152af475f520/global_land_mask-1.0.0-py3-none-any.whl", hash = "sha256:07751fbb4e3834ee508a84ea64d9bd5340fbd0a8c951e24b43c323fcc670bb62", size = 1836944, upload-time = "2020-10-05T13:15:20.322Z" },
 ]
 
 [[package]]

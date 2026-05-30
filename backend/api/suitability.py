@@ -22,6 +22,7 @@ from briefing import (
     generate_site_briefing,
     parse_globe_query,
 )
+from constraints import apply_land_mask
 from registry import get_suitability_model, registered_suitability_verticals
 from resources import get_resource_provider
 from scoring import CellScore, RankedSite, SiteWeights, score_and_rank
@@ -55,6 +56,7 @@ class SuitabilityRequest(BaseModel):
     top_n: int = Field(5, ge=1, le=50)
     include_briefing: bool = False                      # generate the "why this site" briefing
     region_label: str | None = None                     # human label for the region (briefing)
+    land_only: bool = True                               # drop ocean cells (onshore siting)
 
 
 class SuitabilityResponse(BaseModel):
@@ -90,11 +92,15 @@ async def suitability(req: SuitabilityRequest) -> SuitabilityResponse:
         grid = await provider.get_resource_grid(
             req.region.as_tuple(), req.resolution, model.required_variables
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"error": str(exc), "code": "invalid_region"})
     except (httpx.HTTPError, RuntimeError) as exc:
         raise HTTPException(
             status_code=502,
             detail={"error": f"Resource provider failed: {exc}", "code": "resource_provider_error"},
         )
+    if req.land_only:
+        grid = apply_land_mask(grid)
 
     # 3. Per-cell suitability (sync) -> 4. generic normalize + rank. Bad params -> 422.
     try:
@@ -186,8 +192,8 @@ async def ask(req: AskRequest) -> AskResponse:
             status_code=502, detail={"error": f"Query parsing failed: {exc}", "code": "ask_failed"}
         )
 
-    lat_min, lat_max = _clamp_axis(min(q.lat_min, q.lat_max), max(q.lat_min, q.lat_max), 90.0)
-    lon_min, lon_max = _clamp_axis(min(q.lon_min, q.lon_max), max(q.lon_min, q.lon_max), 180.0)
+    lat_min, lat_max = _clamp_axis(min(q.lat_min, q.lat_max), max(q.lat_min, q.lat_max), 90.0, max_span=14.0)
+    lon_min, lon_max = _clamp_axis(min(q.lon_min, q.lon_max), max(q.lon_min, q.lon_max), 180.0, max_span=14.0)
     return AskResponse(
         label=q.label,
         region=BBox(lat_min=lat_min, lon_min=lon_min, lat_max=lat_max, lon_max=lon_max),

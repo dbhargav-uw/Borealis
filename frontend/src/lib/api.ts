@@ -69,7 +69,7 @@ const responseSchema = z.object({
 type LensResponse = z.infer<typeof responseSchema>
 type RankedRaw = z.infer<typeof rankedSchema>
 
-async function fetchLens(region: Region, lens: Lens): Promise<LensResponse> {
+async function fetchLens(region: Region, lens: Lens, landOnly: boolean): Promise<LensResponse> {
   const res = await fetch('/api/suitability', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -79,6 +79,7 @@ async function fetchLens(region: Region, lens: Lens): Promise<LensResponse> {
       resolution: 0.5,
       params: { lens },
       top_n: 5,
+      land_only: landOnly,
     }),
   })
   if (!res.ok) {
@@ -101,8 +102,11 @@ function toSite(s: RankedRaw): RankedSite {
   return { rank: s.rank, lat: s.lat, lng: s.lon, score: s.score, metrics: s.metrics, caveats: s.caveats }
 }
 
-export async function fetchSuitability(region: Region): Promise<SuitabilityData> {
-  const [solar, wind] = await Promise.all([fetchLens(region, 'solar'), fetchLens(region, 'wind')])
+export async function fetchSuitability(region: Region, landOnly = true): Promise<SuitabilityData> {
+  const [solar, wind] = await Promise.all([
+    fetchLens(region, 'solar', landOnly),
+    fetchLens(region, 'wind', landOnly),
+  ])
   const windScoreByKey = new Map(wind.cells.map((c) => [`${c.lat},${c.lon}`, c.score]))
   const cells: SuitabilityCell[] = solar.cells.map((c) => ({
     lat: c.lat,
@@ -144,6 +148,7 @@ export async function fetchBriefing(
   region: Region,
   lens: Lens,
   regionLabel: string,
+  landOnly = true,
 ): Promise<SiteBriefing | null> {
   const res = await fetch('/api/suitability', {
     method: 'POST',
@@ -156,6 +161,7 @@ export async function fetchBriefing(
       top_n: 5,
       include_briefing: true,
       region_label: regionLabel,
+      land_only: landOnly,
     }),
   })
   if (!res.ok) throw new Error(`Briefing request failed (${res.status})`)

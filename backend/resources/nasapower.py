@@ -19,6 +19,7 @@ import httpx
 
 from .base import ResourceProvider
 from .constants import (
+    MAX_REGION_SPAN_DEG,
     MAX_SPAN_DEG,
     MIN_SPAN_DEG,
     NASA_POWER_BASE_URL,
@@ -43,26 +44,45 @@ class NASAPowerProvider(ResourceProvider):
     ) -> ResourceGrid:
         lat_min, lon_min, lat_max, lon_max = bbox
         for span, axis in ((lat_max - lat_min, "lat"), (lon_max - lon_min, "lon")):
-            if not (MIN_SPAN_DEG <= span <= MAX_SPAN_DEG):
-                raise ValueError(
-                    f"{axis} span {span:.3f}° outside NASA POWER regional range "
-                    f"[{MIN_SPAN_DEG}, {MAX_SPAN_DEG}]°."
-                )
+            if span < MIN_SPAN_DEG:
+                raise ValueError(f"{axis} span {span:.3f}° below NASA POWER minimum {MIN_SPAN_DEG}°.")
+            if span > MAX_REGION_SPAN_DEG:
+                raise ValueError(f"{axis} span {span:.3f}° exceeds the max region {MAX_REGION_SPAN_DEG}°.")
         if not variables:
             raise ValueError("get_resource_grid requires at least one variable.")
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            per_var = await asyncio.gather(
-                *(self._fetch_param(client, bbox, var) for var in variables)
-            )
+        # A single POWER regional call is capped at 10°/axis; tile larger regions and merge.
+        tiles = _tile_bbox(bbox, MAX_SPAN_DEG)
+        sem = asyncio.Semaphore(4)
 
+        async with httpx.AsyncClient(timeout=60.0) as client:
+
+            async def fetch(tile: tuple[float, float, float, float]) -> list[ResourceCell]:
+                async with sem:
+                    return await self._fetch_tile(client, tile, variables)
+
+            tile_cells = await asyncio.gather(*(fetch(t) for t in tiles))
+
+        merged: dict[Coord, ResourceCell] = {}
+        for cells in tile_cells:
+            for cell in cells:
+                merged[(cell.lat, cell.lon)] = cell  # dedup overlapping tile edges
+        cells = _coarsen([merged[k] for k in sorted(merged)], resolution)
+        return ResourceGrid(bbox=bbox, resolution=resolution, variables=variables, cells=cells)
+
+    async def _fetch_tile(
+        self,
+        client: httpx.AsyncClient,
+        tile: tuple[float, float, float, float],
+        variables: list[str],
+    ) -> list[ResourceCell]:
+        per_var = await asyncio.gather(
+            *(self._fetch_param(client, tile, var) for var in variables)
+        )
         try:
-            cells = _join_nearest(per_var, variables)
+            return _join_nearest(per_var, variables)
         except (KeyError, ValueError, TypeError) as exc:
             raise RuntimeError(f"NASA POWER response malformed: {exc}") from exc
-
-        cells = _coarsen(cells, resolution)
-        return ResourceGrid(bbox=bbox, resolution=resolution, variables=variables, cells=cells)
 
     async def _fetch_param(
         self,
@@ -138,6 +158,26 @@ def _join_nearest(
         if ok:
             cells.append(ResourceCell(lat=lat, lon=lon, values=vals))
     return cells
+
+
+def _tile_bbox(
+    bbox: tuple[float, float, float, float], max_span: float
+) -> list[tuple[float, float, float, float]]:
+    """Split a bbox into a grid of tiles, each at most `max_span` per axis (and, given the
+    region cap, never below the API minimum). Tiles cover the bbox exactly."""
+    lat_min, lon_min, lat_max, lon_max = bbox
+
+    def bands(lo: float, hi: float) -> list[tuple[float, float]]:
+        span = hi - lo
+        n = max(1, math.ceil(span / max_span - 1e-9))  # epsilon: span==max_span -> 1 tile
+        step = span / n
+        return [(lo + i * step, lo + (i + 1) * step) for i in range(n)]
+
+    return [
+        (la0, lo0, la1, lo1)
+        for (la0, la1) in bands(lat_min, lat_max)
+        for (lo0, lo1) in bands(lon_min, lon_max)
+    ]
 
 
 def _coarsen(cells: list[ResourceCell], resolution: float) -> list[ResourceCell]:

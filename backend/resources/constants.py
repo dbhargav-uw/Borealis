@@ -14,9 +14,12 @@ GHI = "ALLSKY_SFC_SW_DWN"       # all-sky surface shortwave down, kWh/m²/day
 WIND_50M = "WS50M"              # wind speed at 50 m, m/s
 WIND_10M = "WS10M"              # wind speed at 10 m, m/s
 TEMP_2M = "T2M"                 # temperature at 2 m, °C
+PRECIP = "PRECTOTCORR"          # bias-corrected total precipitation, mm/day
 
-# Regional endpoint accepts a bbox between these spans per axis (verified: 1° too small,
-# 30° too big; a single regional request is capped at 10°×10°).
+# A single regional request is capped at 10°×10° (verified). Larger regions are TILED into
+# <=MAX_SPAN tiles by the provider; each axis must still be at least MIN_SPAN.
 MIN_SPAN_DEG = 2.0
 MAX_SPAN_DEG = 10.0
+# Overall region cap (tiled) — bounds fan-out / cost. A 40° axis = up to 4 tiles.
+MAX_REGION_SPAN_DEG = 40.0
 NATIVE_RESOLUTION_DEG = 0.5

@@ -61,6 +61,7 @@ export function App(): ReactElement {
   const [query, setQuery] = useState<string>('')
   const [asking, setAsking] = useState<boolean>(false)
   const [askError, setAskError] = useState<string | null>(null)
+  const [landOnly, setLandOnly] = useState<boolean>(true)
   const globeRef = useRef<GlobeHandle>(null)
   const { width, height } = useWindowSize()
 
@@ -70,7 +71,7 @@ export function App(): ReactElement {
     setState({ kind: 'loading' })
     const run = async (): Promise<void> => {
       try {
-        const data = await fetchSuitability(region)
+        const data = await fetchSuitability(region, landOnly)
         if (!cancelled) setState({ kind: 'ok', data })
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
@@ -82,7 +83,7 @@ export function App(): ReactElement {
     return () => {
       cancelled = true
     }
-  }, [region])
+  }, [region, landOnly])
 
   const data = state.kind === 'ok' ? state.data : null
   const sites = useMemo<RankedSite[]>(() => (data ? data.sites[lens] : []), [data, lens])
@@ -149,7 +150,7 @@ export function App(): ReactElement {
     setBrief({ kind: 'loading' })
     void (async (): Promise<void> => {
       try {
-        const b = await fetchBriefing(region, lens, regionLabel)
+        const b = await fetchBriefing(region, lens, regionLabel, landOnly)
         setBrief(b ? { kind: 'ok', briefing: b } : { kind: 'none' })
       } catch (err) {
         setBrief({ kind: 'error', message: err instanceof Error ? err.message : 'Briefing failed' })
@@ -199,6 +200,10 @@ export function App(): ReactElement {
             </button>
           ))}
         </div>
+        <label className="offshore">
+          <input type="checkbox" checked={!landOnly} onChange={(e) => setLandOnly(!e.target.checked)} />
+          Include offshore
+        </label>
         <p className="region-label">{regionLabel}</p>
       </header>
 

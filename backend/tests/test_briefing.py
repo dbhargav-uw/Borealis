@@ -128,11 +128,12 @@ def test_ask_503_without_key(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_ask_mocked_clamps_bbox(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _fake_parse(**_: object) -> GlobeQuery:
-        return GlobeQuery(label="Spain", lat_min=36, lon_min=-9, lat_max=44, lon_max=3, lens="wind")
+        # An oversized box (30°×20°) must be clamped to the 14° NL-search limit.
+        return GlobeQuery(label="Iberia", lat_min=30, lon_min=-20, lat_max=50, lon_max=10, lens="wind")
 
     monkeypatch.setattr(suit_module, "parse_globe_query", _fake_parse)
-    data = client.post("/api/ask", json={"query": "wind in spain"}).json()
-    assert data["lens"] == "wind" and data["label"] == "Spain"
+    data = client.post("/api/ask", json={"query": "wind in iberia"}).json()
+    assert data["lens"] == "wind" and data["label"] == "Iberia"
     r = data["region"]
-    assert (r["lon_max"] - r["lon_min"]) <= 10.0 + 1e-9  # 12° -> clamped to 10°
-    assert (r["lat_max"] - r["lat_min"]) <= 10.0 + 1e-9
+    assert (r["lon_max"] - r["lon_min"]) <= 14.0 + 1e-9
+    assert (r["lat_max"] - r["lat_min"]) <= 14.0 + 1e-9

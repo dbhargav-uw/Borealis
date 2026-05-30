@@ -84,11 +84,39 @@ def test_bad_span_raises(patched: None) -> None:
     prov = NASAPowerProvider()
     with pytest.raises(ValueError, match="span"):  # lat span 1° (too small)
         asyncio.run(prov.get_resource_grid((40.0, -105.0, 41.0, -101.0), 0.5, ["WS50M"]))
-    with pytest.raises(ValueError, match="span"):  # lon span 35° (too big)
-        asyncio.run(prov.get_resource_grid((40.0, -105.0, 44.0, -70.0), 0.5, ["WS50M"]))
+    with pytest.raises(ValueError, match="span"):  # lon span 50° exceeds the region cap
+        asyncio.run(prov.get_resource_grid((40.0, -105.0, 44.0, -55.0), 0.5, ["WS50M"]))
 
 
 def test_empty_variables_raises(patched: None) -> None:
     prov = NASAPowerProvider()
     with pytest.raises(ValueError):
         asyncio.run(prov.get_resource_grid((40.0, -105.0, 44.0, -101.0), 0.5, []))
+
+
+class _TileFakeClient:
+    """Returns one cell per tile at (lat_min+0.5, lon_min+0.5) — exercises the AOI tiler."""
+
+    async def __aenter__(self) -> "_TileFakeClient":
+        return self
+
+    async def __aexit__(self, *exc: object) -> bool:
+        return False
+
+    async def get(self, url: str, params: dict | None = None):  # type: ignore[no-untyped-def]
+        p = params or {}
+        lat0, lon0, param = float(p["latitude-min"]), float(p["longitude-min"]), p["parameters"]
+        feat = {
+            "geometry": {"coordinates": [lon0 + 0.5, lat0 + 0.5]},
+            "properties": {"parameter": {param: {"ANN": 5.0}}},
+        }
+        return _FakeResp({"type": "FeatureCollection", "features": [feat]})
+
+
+def test_aoi_tiler_merges(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(np_mod.httpx, "AsyncClient", lambda *a, **k: _TileFakeClient())
+    prov = NASAPowerProvider()
+    # lat span 20 (-> 2 lat tiles), lon span 8 (-> 1 lon tile) = 2 tiles, merged.
+    grid = asyncio.run(prov.get_resource_grid((0.0, 0.0, 20.0, 8.0), 0.5, ["WS50M", "T2M"]))
+    assert grid.n_cells == 2
+    assert sorted(c.lat for c in grid.cells) == [0.5, 10.5]
