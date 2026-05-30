@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 
 import operational  # noqa: F401  -- registers the deferred operational EnergyModel (Act 2)
+import verticals.agri  # noqa: F401  -- registers the AgriSuitabilityModel (2nd vertical)
 import verticals.energy  # noqa: F401  -- registers the EnergySuitabilityModel (the product)
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder

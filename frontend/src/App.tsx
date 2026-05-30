@@ -4,19 +4,20 @@ import {
   fetchAsk,
   fetchBriefing,
   fetchSuitability,
+  LAYERS,
   regionCenter,
-  type Lens,
+  type LayerDef,
   type RankedSite,
   type Region,
   type SiteBriefing,
   type SuitabilityData,
 } from './lib/api'
-import { LENS_ACCENT } from './lib/colors'
 import { logger } from './lib/logger'
 import './App.css'
 
 const DEFAULT_REGION: Region = { lat_min: 36, lon_min: -10, lat_max: 44, lon_max: 0 }
 const DEFAULT_LABEL = 'Iberian Peninsula'
+const FALLBACK_LAYER: LayerDef = LAYERS[0]!
 
 type State =
   | { kind: 'loading' }
@@ -40,22 +41,11 @@ function useWindowSize(): { width: number; height: number } {
   return size
 }
 
-function headlineMetric(site: RankedSite, lens: Lens): { label: string; value: string } {
-  if (lens === 'solar') {
-    const yld = site.metrics['specific_yield_kwh_kwp_yr'] ?? 0
-    const cf = (site.metrics['capacity_factor'] ?? 0) * 100
-    return { label: 'Specific yield', value: `${yld.toFixed(0)} kWh/kWp·yr · CF ${cf.toFixed(0)}%` }
-  }
-  const wpd = site.metrics['wind_power_density_wm2'] ?? 0
-  const v = site.metrics['mean_wind_50m_ms'] ?? 0
-  return { label: 'Wind power density', value: `${wpd.toFixed(0)} W/m² · ${v.toFixed(1)} m/s @50m` }
-}
-
 export function App(): ReactElement {
   const [region, setRegion] = useState<Region>(DEFAULT_REGION)
   const [regionLabel, setRegionLabel] = useState<string>(DEFAULT_LABEL)
   const [state, setState] = useState<State>({ kind: 'loading' })
-  const [lens, setLens] = useState<Lens>('solar')
+  const [activeLayer, setActiveLayer] = useState<string>('solar')
   const [selected, setSelected] = useState<RankedSite | null>(null)
   const [brief, setBrief] = useState<BriefState>({ kind: 'idle' })
   const [query, setQuery] = useState<string>('')
@@ -65,7 +55,6 @@ export function App(): ReactElement {
   const globeRef = useRef<GlobeHandle>(null)
   const { width, height } = useWindowSize()
 
-  // (Re)load suitability whenever the region changes.
   useEffect(() => {
     let cancelled = false
     setState({ kind: 'loading' })
@@ -85,17 +74,18 @@ export function App(): ReactElement {
     }
   }, [region, landOnly])
 
+  const layer = LAYERS.find((l) => l.id === activeLayer) ?? FALLBACK_LAYER
+  const accent = layer.accent
   const data = state.kind === 'ok' ? state.data : null
-  const sites = useMemo<RankedSite[]>(() => (data ? data.sites[lens] : []), [data, lens])
+  const sites = useMemo<RankedSite[]>(() => (data ? data.sites[activeLayer] ?? [] : []), [data, activeLayer])
 
   useEffect(() => {
     setSelected(sites[0] ?? null)
   }, [sites])
 
-  // The briefing is specific to (region, lens) — reset it when either changes.
   useEffect(() => {
     setBrief({ kind: 'idle' })
-  }, [lens, region])
+  }, [activeLayer, region])
 
   if (state.kind === 'loading') {
     return (
@@ -120,13 +110,11 @@ export function App(): ReactElement {
     )
   }
 
-  const accent = LENS_ACCENT[lens]
-
+  const unit = state.data.units[activeLayer] ?? ''
   const onPick = (site: RankedSite): void => {
     setSelected(site)
     globeRef.current?.flyTo(site.lat, site.lng)
   }
-
   const onAsk = (e: FormEvent): void => {
     e.preventDefault()
     if (!query.trim() || asking) return
@@ -136,8 +124,8 @@ export function App(): ReactElement {
       try {
         const res = await fetchAsk(query.trim())
         setRegionLabel(res.label)
-        setLens(res.lens)
-        setRegion(res.region) // triggers a reload + the globe reframes
+        setActiveLayer(res.lens)
+        setRegion(res.region)
       } catch (err) {
         setAskError(err instanceof Error ? err.message : 'Search failed')
       } finally {
@@ -145,12 +133,11 @@ export function App(): ReactElement {
       }
     })()
   }
-
   const onExplain = (): void => {
     setBrief({ kind: 'loading' })
     void (async (): Promise<void> => {
       try {
-        const b = await fetchBriefing(region, lens, regionLabel, landOnly)
+        const b = await fetchBriefing(region, layer, regionLabel, landOnly)
         setBrief(b ? { kind: 'ok', briefing: b } : { kind: 'none' })
       } catch (err) {
         setBrief({ kind: 'error', message: err instanceof Error ? err.message : 'Briefing failed' })
@@ -165,7 +152,8 @@ export function App(): ReactElement {
           ref={globeRef}
           cells={state.data.cells}
           sites={sites}
-          lens={lens}
+          layerId={activeLayer}
+          accent={accent}
           width={width}
           height={height}
           focus={regionCenter(state.data.region)}
@@ -175,7 +163,7 @@ export function App(): ReactElement {
 
       <header className="hud hud--top">
         <h1>Borealis</h1>
-        <p className="tagline">Where on Earth to build solar &amp; wind</p>
+        <p className="tagline">Where on Earth to build — solar, wind &amp; cropland</p>
         <form className="ask" onSubmit={onAsk}>
           <input
             type="text"
@@ -187,16 +175,16 @@ export function App(): ReactElement {
           <button type="submit" disabled={asking}>{asking ? '…' : 'Ask'}</button>
         </form>
         {askError && <p className="ask-error">{askError}</p>}
-        <div className="lens-toggle" role="group" aria-label="Resource lens">
-          {(['solar', 'wind'] as const).map((l) => (
+        <div className="lens-toggle" role="group" aria-label="Suitability layer">
+          {LAYERS.map((l) => (
             <button
-              key={l}
+              key={l.id}
               type="button"
-              className={l === lens ? 'lens lens--active' : 'lens'}
-              style={l === lens ? { borderColor: accent, color: accent } : undefined}
-              onClick={() => setLens(l)}
+              className={l.id === activeLayer ? 'lens lens--active' : 'lens'}
+              style={l.id === activeLayer ? { borderColor: l.accent, color: l.accent } : undefined}
+              onClick={() => setActiveLayer(l.id)}
             >
-              {l === 'solar' ? '☀ Solar' : '🌀 Wind'}
+              {l.label}
             </button>
           ))}
         </div>
@@ -209,7 +197,7 @@ export function App(): ReactElement {
 
       <section className="hud hud--sites">
         <div className="sites-head">
-          <h2 style={{ color: accent }}>Top sites · {lens}</h2>
+          <h2 style={{ color: accent }}>Top sites · {layer.name}</h2>
           <button type="button" className="explain-btn" onClick={onExplain}>✨ Explain</button>
         </div>
         <ol>
@@ -271,15 +259,10 @@ export function App(): ReactElement {
             </div>
           </div>
           <div className="bar"><span style={{ width: `${selected.score * 100}%`, background: accent }} /></div>
-          {(() => {
-            const m = headlineMetric(selected, lens)
-            return (
-              <p className="detail-metric">
-                <span className="detail-label">{m.label}</span>
-                <span>{m.value}</span>
-              </p>
-            )
-          })()}
+          <p className="detail-metric">
+            <span className="detail-label">{layer.metricLabel}</span>
+            <span>{(selected.metrics[layer.metricKey] ?? 0).toFixed(0)} {unit}</span>
+          </p>
           <ul className="caveats">
             {selected.caveats.map((c, i) => (
               <li key={i}>{c}</li>

@@ -1,10 +1,28 @@
-// Typed client for the Borealis site-selection API. Calls POST /api/suitability for BOTH
-// lenses so the solar/wind toggle is instant and offline. Backend lat/lon -> globe lat/lng
-// is mapped here at the boundary. All external input validated with Zod.
+// Typed client for the Borealis site-selection API. Drives a generic set of LAYERS
+// (solar/wind = energy vertical, cropland = agriculture vertical). Each layer is one
+// /api/suitability call; the frontend merges them so toggling between layers is instant +
+// offline. Backend lat/lon -> globe lat/lng is mapped at this boundary. Zod-validated.
 
 import { z } from 'zod'
 
 export type Lens = 'solar' | 'wind'
+
+export interface LayerDef {
+  id: string
+  label: string
+  name: string
+  vertical: string
+  params: Record<string, string>
+  accent: string // hex
+  metricKey: string
+  metricLabel: string
+}
+
+export const LAYERS: LayerDef[] = [
+  { id: 'solar', label: '☀ Solar', name: 'solar', vertical: 'energy', params: { lens: 'solar' }, accent: '#ffd140', metricKey: 'specific_yield_kwh_kwp_yr', metricLabel: 'Specific yield' },
+  { id: 'wind', label: '🌀 Wind', name: 'wind', vertical: 'energy', params: { lens: 'wind' }, accent: '#4ed6ff', metricKey: 'wind_power_density_wm2', metricLabel: 'Wind power density' },
+  { id: 'cropland', label: '🌱 Cropland', name: 'cropland', vertical: 'agriculture', params: {}, accent: '#7ce38b', metricKey: 'growing_degree_days', metricLabel: 'Growing-degree-days' },
+]
 
 export interface Region {
   lat_min: number
@@ -16,8 +34,7 @@ export interface Region {
 export interface SuitabilityCell {
   lat: number
   lng: number
-  solarScore: number
-  windScore: number
+  scores: Record<string, number> // layer id -> 0..1 score
 }
 
 export interface RankedSite {
@@ -32,8 +49,8 @@ export interface RankedSite {
 export interface SuitabilityData {
   region: Region
   cells: SuitabilityCell[]
-  sites: Record<Lens, RankedSite[]>
-  units: Record<Lens, string>
+  sites: Record<string, RankedSite[]>
+  units: Record<string, string>
 }
 
 const cellSchema = z.object({
@@ -53,73 +70,59 @@ const rankedSchema = z.object({
 })
 
 const responseSchema = z.object({
-  region: z.object({
-    lat_min: z.number(),
-    lon_min: z.number(),
-    lat_max: z.number(),
-    lon_max: z.number(),
-  }),
-  resolution: z.number(),
   metric_units: z.string(),
-  n_cells: z.number(),
   cells: z.array(cellSchema),
   ranked_sites: z.array(rankedSchema),
 })
 
-type LensResponse = z.infer<typeof responseSchema>
+type LayerResponse = z.infer<typeof responseSchema>
 type RankedRaw = z.infer<typeof rankedSchema>
-
-async function fetchLens(region: Region, lens: Lens, landOnly: boolean): Promise<LensResponse> {
-  const res = await fetch('/api/suitability', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      vertical: 'energy',
-      region,
-      resolution: 0.5,
-      params: { lens },
-      top_n: 5,
-      land_only: landOnly,
-    }),
-  })
-  if (!res.ok) {
-    let detail = ''
-    try {
-      const body: unknown = await res.json()
-      if (body && typeof body === 'object' && 'error' in body) {
-        detail = `: ${String((body as { error: unknown }).error)}`
-      }
-    } catch {
-      detail = ''
-    }
-    throw new Error(`Suitability request failed (${res.status})${detail}`)
-  }
-  const json: unknown = await res.json()
-  return responseSchema.parse(json)
-}
 
 function toSite(s: RankedRaw): RankedSite {
   return { rank: s.rank, lat: s.lat, lng: s.lon, score: s.score, metrics: s.metrics, caveats: s.caveats }
 }
 
+async function fetchLayer(region: Region, layer: LayerDef, landOnly: boolean, briefing = false, regionLabel = ''): Promise<unknown> {
+  const res = await fetch('/api/suitability', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vertical: layer.vertical,
+      region,
+      resolution: 0.5,
+      params: layer.params,
+      top_n: 5,
+      land_only: landOnly,
+      include_briefing: briefing,
+      region_label: regionLabel,
+    }),
+  })
+  if (!res.ok) throw new Error(`Suitability request failed (${res.status})`)
+  return res.json()
+}
+
 export async function fetchSuitability(region: Region, landOnly = true): Promise<SuitabilityData> {
-  const [solar, wind] = await Promise.all([
-    fetchLens(region, 'solar', landOnly),
-    fetchLens(region, 'wind', landOnly),
-  ])
-  const windScoreByKey = new Map(wind.cells.map((c) => [`${c.lat},${c.lon}`, c.score]))
-  const cells: SuitabilityCell[] = solar.cells.map((c) => ({
-    lat: c.lat,
-    lng: c.lon,
-    solarScore: c.score,
-    windScore: windScoreByKey.get(`${c.lat},${c.lon}`) ?? 0,
-  }))
-  return {
-    region,
-    cells,
-    sites: { solar: solar.ranked_sites.map(toSite), wind: wind.ranked_sites.map(toSite) },
-    units: { solar: solar.metric_units, wind: wind.metric_units },
-  }
+  const raw = await Promise.all(LAYERS.map((l) => fetchLayer(region, l, landOnly)))
+  const responses: LayerResponse[] = raw.map((r) => responseSchema.parse(r))
+
+  const cellMap = new Map<string, SuitabilityCell>()
+  const sites: Record<string, RankedSite[]> = {}
+  const units: Record<string, string> = {}
+
+  LAYERS.forEach((layer, i) => {
+    const r = responses[i]
+    if (!r) return
+    sites[layer.id] = r.ranked_sites.map(toSite)
+    units[layer.id] = r.metric_units
+    for (const c of r.cells) {
+      const key = `${c.lat},${c.lon}`
+      const existing = cellMap.get(key) ?? { lat: c.lat, lng: c.lon, scores: {} }
+      existing.scores[layer.id] = c.score
+      cellMap.set(key, existing)
+    }
+  })
+
+  return { region, cells: [...cellMap.values()], sites, units }
 }
 
 export function regionCenter(r: Region): { lat: number; lng: number } {
@@ -144,28 +147,8 @@ const briefingSchema = z.object({
   confidence: z.enum(['low', 'medium', 'high']),
 })
 
-export async function fetchBriefing(
-  region: Region,
-  lens: Lens,
-  regionLabel: string,
-  landOnly = true,
-): Promise<SiteBriefing | null> {
-  const res = await fetch('/api/suitability', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      vertical: 'energy',
-      region,
-      resolution: 0.5,
-      params: { lens },
-      top_n: 5,
-      include_briefing: true,
-      region_label: regionLabel,
-      land_only: landOnly,
-    }),
-  })
-  if (!res.ok) throw new Error(`Briefing request failed (${res.status})`)
-  const json: unknown = await res.json()
+export async function fetchBriefing(region: Region, layer: LayerDef, regionLabel: string, landOnly = true): Promise<SiteBriefing | null> {
+  const json = await fetchLayer(region, layer, landOnly, true, regionLabel)
   return z.object({ briefing: briefingSchema.nullable() }).parse(json).briefing
 }
 
@@ -179,12 +162,7 @@ export interface AskResult {
 
 const askSchema = z.object({
   label: z.string(),
-  region: z.object({
-    lat_min: z.number(),
-    lon_min: z.number(),
-    lat_max: z.number(),
-    lon_max: z.number(),
-  }),
+  region: z.object({ lat_min: z.number(), lon_min: z.number(), lat_max: z.number(), lon_max: z.number() }),
   lens: z.enum(['solar', 'wind']),
 })
 
@@ -198,9 +176,7 @@ export async function fetchAsk(query: string): Promise<AskResult> {
     let message = `Search failed (${res.status})`
     try {
       const body: unknown = await res.json()
-      if (body && typeof body === 'object' && 'error' in body) {
-        message = String((body as { error: unknown }).error)
-      }
+      if (body && typeof body === 'object' && 'error' in body) message = String((body as { error: unknown }).error)
     } catch {
       message = `Search failed (${res.status})`
     }

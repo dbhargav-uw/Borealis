@@ -7,8 +7,8 @@ import {
   type ReactElement,
 } from 'react'
 import Globe, { type GlobeMethods } from 'react-globe.gl'
-import type { Lens, RankedSite, SuitabilityCell } from './lib/api'
-import { LENS_ACCENT, scoreColor } from './lib/colors'
+import type { RankedSite, SuitabilityCell } from './lib/api'
+import { scoreColor } from './lib/colors'
 
 export interface GlobeHandle {
   flyTo: (lat: number, lng: number, altitude?: number) => void
@@ -17,7 +17,8 @@ export interface GlobeHandle {
 interface Props {
   cells: SuitabilityCell[]
   sites: RankedSite[]
-  lens: Lens
+  layerId: string
+  accent: string
   width: number
   height: number
   focus: { lat: number; lng: number }
@@ -26,12 +27,12 @@ interface Props {
 
 const EARTH_DARK = '/earth-dark.jpg' // bundled in public/ (same-origin; avoids CORS)
 
-function weightOf(cell: SuitabilityCell, lens: Lens): number {
-  return lens === 'solar' ? cell.solarScore : cell.windScore
+function weightOf(cell: SuitabilityCell, layerId: string): number {
+  return cell.scores[layerId] ?? 0
 }
 
 export const SuitabilityGlobe = forwardRef<GlobeHandle, Props>(function SuitabilityGlobe(
-  { cells, sites, lens, width, height, focus, onSiteClick },
+  { cells, sites, layerId, accent, width, height, focus, onSiteClick },
   ref,
 ): ReactElement {
   const globeRef = useRef<GlobeMethods | undefined>(undefined)
@@ -46,7 +47,6 @@ export const SuitabilityGlobe = forwardRef<GlobeHandle, Props>(function Suitabil
     [],
   )
 
-  // Gentle auto-rotate + frame the region once the globe is mounted.
   useEffect(() => {
     const globe = globeRef.current
     if (!globe) return
@@ -54,20 +54,17 @@ export const SuitabilityGlobe = forwardRef<GlobeHandle, Props>(function Suitabil
     controls.autoRotate = true
     controls.autoRotateSpeed = 0.3
     globe.pointOfView({ lat: focus.lat, lng: focus.lng, altitude: 1.5 }, 0)
-    // focus only matters for the initial frame; subsequent moves go through flyTo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Accessors recomputed per lens so the field recolors on toggle.
   const pointColor = useMemo(
-    () => (d: object): string => scoreColor(weightOf(d as SuitabilityCell, lens), lens),
-    [lens],
+    () => (d: object): string => scoreColor(weightOf(d as SuitabilityCell, layerId), accent),
+    [layerId, accent],
   )
   const pointAltitude = useMemo(
-    () => (d: object): number => 0.01 + 0.22 * weightOf(d as SuitabilityCell, lens),
-    [lens],
+    () => (d: object): number => 0.01 + 0.22 * weightOf(d as SuitabilityCell, layerId),
+    [layerId],
   )
-  const accent = LENS_ACCENT[lens]
 
   return (
     <Globe
@@ -79,7 +76,6 @@ export const SuitabilityGlobe = forwardRef<GlobeHandle, Props>(function Suitabil
       showAtmosphere
       atmosphereColor={accent}
       atmosphereAltitude={0.18}
-      // --- suitability field ---
       pointsData={cells}
       pointLat="lat"
       pointLng="lng"
@@ -88,7 +84,6 @@ export const SuitabilityGlobe = forwardRef<GlobeHandle, Props>(function Suitabil
       pointRadius={0.3}
       pointsMerge={false}
       pointsTransitionDuration={600}
-      // --- ranked sites: glowing rings + rank labels ---
       ringsData={sites}
       ringLat="lat"
       ringLng="lng"
