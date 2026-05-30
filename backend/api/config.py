@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
 
     # Open-Meteo ensemble endpoint (Phase 2 forecast provider).
-    open_meteo_base_url: str = "https://api.open-meteo.com/v1/ensemble"
+    # NOTE: the ensemble API lives on the ensemble-api.* subdomain; the api.*
+    # subdomain 404s for /v1/ensemble (verified live).
+    open_meteo_base_url: str = "https://ensemble-api.open-meteo.com/v1/ensemble"
 
 
 @lru_cache

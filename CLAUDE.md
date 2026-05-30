@@ -48,9 +48,9 @@ Validation: the same Earth-2 model class is already used by energy majors
   percentiles. Never collapse to a single number too early.
 
 ## Status (update as you go)
-Current phase: Phase 1 complete (scaffold verified) — awaiting sign-off before Phase 2
+Current phase: Phase 2 complete (energy solar+wind, /api/assess verified live) — awaiting sign-off before Phase 3
 - [x] Phase 1: monorepo scaffold + /health endpoint the frontend hits
-- [ ] Phase 2: core slice + ENERGY module (forecast -> impact -> risk, POST /api/assess)
+- [x] Phase 2: core slice + ENERGY module (forecast -> impact -> risk, POST /api/assess)
 - [ ] Phase 3: briefing (Anthropic structured output), vertical-aware
 - [ ] Phase 4: frontend (Cesium globe, lens toggle, fan chart, briefing, wind layer)
 - [ ] Phase 5: second vertical = AGRICULTURE (frost) + demo polish

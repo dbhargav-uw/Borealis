@@ -9,6 +9,10 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "httpx>=0.27",
+    "numpy>=2.4.6",
+    "pandas>=3.0.3",
+    "pvlib>=0.11,<0.14",
+    "scipy>=1.17.1",
 ]
 
 [dependency-groups]

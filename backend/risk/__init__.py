@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
+import numpy as np
 from pydantic import BaseModel
 
 from verticals.base import ImpactEnsemble
@@ -40,8 +41,73 @@ class RiskAssessment(BaseModel):
 
 
 def assess_risk(impact: ImpactEnsemble, thresholds: list[Threshold]) -> RiskAssessment:
-    """Percentiles per hour across members + P(cross threshold). Generic.
+    """Percentile fan (P10/P50/P90) + threshold-crossing probabilities across members.
 
-    Implemented with tests in Phase 2 (most error-prone math in the spine).
+    GENERIC: operates only on impact.series ([member N][hour H]) plus the vertical's
+    units/timestamps — no vertical-specific logic. Per hour, percentiles are taken across
+    members. For a Threshold, prob_by_hour[h] is the fraction of members crossing at hour
+    h (STRICT: ``<`` for "below", ``>`` for "above"); prob_any is the fraction of members
+    crossing at ANY hour in the window (per-member OR -> always >= max(prob_by_hour)).
+
+    Rejects NaN / ragged / empty input: a NaN compares False and would silently undercount
+    crossings, hiding forecast data gaps. The forecast provider owns cleaning.
     """
-    raise NotImplementedError("assess_risk lands in Phase 2 (with pytest tests).")
+    series = impact.series
+    n_members = len(series)
+    if n_members == 0:
+        raise ValueError("ImpactEnsemble has no members; cannot compute percentiles.")
+
+    hour_counts = {len(row) for row in series}
+    if len(hour_counts) > 1:
+        raise ValueError(
+            f"Ragged ImpactEnsemble.series: members have differing hour counts {sorted(hour_counts)}."
+        )
+
+    arr = np.asarray(series, dtype=float)  # (N, H)
+    n_hours = arr.shape[1] if arr.ndim == 2 else 0
+
+    if n_hours != len(impact.timestamps):
+        raise ValueError(
+            f"series hour count {n_hours} != timestamps {len(impact.timestamps)}."
+        )
+
+    if np.isnan(arr).any():
+        raise ValueError(
+            "ImpactEnsemble contains NaN; clean/forward-fill in the forecast provider "
+            "before risk math."
+        )
+
+    if n_hours == 0:  # valid degenerate window: members present, zero hours
+        return RiskAssessment(
+            units=impact.units,
+            timestamps=impact.timestamps,
+            p10=[],
+            p50=[],
+            p90=[],
+            thresholds=[
+                ThresholdProbability(name=t.name, prob_any=0.0, prob_by_hour=[])
+                for t in thresholds
+            ],
+        )
+
+    p10, p50, p90 = np.percentile(arr, [10.0, 50.0, 90.0], axis=0, method="linear")
+
+    tps: list[ThresholdProbability] = []
+    for t in thresholds:
+        mask = (arr < t.value) if t.direction == "below" else (arr > t.value)  # STRICT
+        prob_by_hour = mask.mean(axis=0)            # fraction crossing AT each hour
+        prob_any = float(mask.any(axis=1).mean())   # fraction crossing at ANY hour
+        tps.append(
+            ThresholdProbability(
+                name=t.name, prob_any=prob_any, prob_by_hour=prob_by_hour.tolist()
+            )
+        )
+
+    return RiskAssessment(
+        units=impact.units,
+        timestamps=impact.timestamps,
+        p10=p10.tolist(),
+        p50=p50.tolist(),
+        p90=p90.tolist(),
+        thresholds=tps,
+    )
