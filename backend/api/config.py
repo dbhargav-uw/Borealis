@@ -24,8 +24,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Anthropic key for the "why this site" briefing + NL search (P4). Optional until then.
+    # Anthropic key for the "why this site" briefing + NL search (P4). Optional — the
+    # product works without it (briefing degrades to null).
     anthropic_api_key: str | None = None
+    briefing_model: str = "claude-sonnet-4-6"
 
     # Frontend dev origin allowed through CORS.
     frontend_origin: str = "http://localhost:5173"

@@ -223,3 +223,151 @@
   opacity: 0.6;
   font-size: 13px;
 }
+
+/* --- ask-the-globe search --- */
+.ask {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.ask input {
+  flex: 1;
+  background: rgba(20, 24, 40, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid #2a3350;
+  color: #e8ecf4;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  outline: none;
+}
+.ask input:focus {
+  border-color: #4a557a;
+}
+.ask button {
+  background: rgba(20, 24, 40, 0.9);
+  border: 1px solid #2a3350;
+  color: #cfd6e6;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.ask button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.ask-error {
+  margin: -4px 0 10px;
+  font-size: 12px;
+  color: #ff9a8a;
+}
+.region-label {
+  margin: 10px 0 0;
+  font-size: 12px;
+  opacity: 0.55;
+}
+
+/* --- sites header + explain --- */
+.sites-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.sites-head h2 {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.explain-btn {
+  background: transparent;
+  border: 1px solid #2a3350;
+  color: #cfd6e6;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.explain-btn:hover {
+  border-color: #4a557a;
+}
+
+/* --- briefing panel --- */
+.hud--briefing {
+  bottom: 22px;
+  left: 24px;
+  width: 320px;
+  background: rgba(10, 13, 22, 0.86);
+  backdrop-filter: blur(12px);
+  border: 1px solid #1d2438;
+  border-radius: 14px;
+  padding: 14px;
+}
+.brief-loading,
+.brief-none {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.75;
+}
+.brief-none code {
+  background: #11161f;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.brief-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.brief-head strong {
+  font-size: 14px;
+}
+.conf {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.conf--high {
+  background: rgba(74, 222, 128, 0.18);
+  color: #6ee79a;
+}
+.conf--medium {
+  background: rgba(255, 209, 64, 0.18);
+  color: #ffd140;
+}
+.conf--low {
+  background: rgba(248, 113, 113, 0.18);
+  color: #ff8a7a;
+}
+.brief-body {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.chip {
+  font-size: 11px;
+  border: 1px solid #2a3350;
+  border-radius: 999px;
+  padding: 3px 9px;
+  opacity: 0.9;
+}
+
+/* legend sits to the right when the briefing panel is open on the left */
+.hud--legend {
+  left: auto;
+  right: 24px;
+}

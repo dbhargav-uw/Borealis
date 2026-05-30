@@ -53,11 +53,11 @@ SuitabilityModel interface: `{ id, name, required_variables, briefing_role,
   metric_units(params), score_cell(cell, params) -> SuitabilityScore }`
 
 ## Status (update as you go)
-Current phase: PIVOT to site selection — P1 + P2 complete (backend product exists headless)
+Current phase: PIVOT to site selection — P1–P4 complete (backend + globe + LLM seam; set ANTHROPIC_API_KEY for live briefings)
 - [x] P1: shelve forecast-risk to operational/ + ResourceProvider / NASAPowerProvider
 - [x] P2: EnergySuitabilityModel (solar+wind) + generic score_and_rank + POST /api/suitability (live-verified)
-- [ ] P3: react-globe.gl heatmap + ranked sites + fly-to + lens toggle
-- [ ] P4: "why this site" briefing (claude-sonnet-4-6) + "ask the globe" NL search
+- [x] P3: react-globe.gl heatmap + ranked sites + fly-to + lens toggle (live-verified in browser)
+- [x] P4: "why this site" briefing (claude-sonnet-4-6) + "ask the globe" NL search (degrade gracefully w/o a key)
 - [ ] Later: land/water + other constraints, Global Wind/Solar Atlas, agriculture lens, re-activate Act 2
 
 ## Working philosophy in this repo
