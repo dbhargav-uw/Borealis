@@ -129,6 +129,47 @@ export function regionCenter(r: Region): { lat: number; lng: number } {
   return { lat: (r.lat_min + r.lat_max) / 2, lng: (r.lon_min + r.lon_max) / 2 }
 }
 
+// --- Act 2: short-term generation variability for a CHOSEN site -------------------------
+// Reuses the shelved operational forecast path (/api/operational/assess): once you've
+// picked WHERE to build, see that site's near-term P10/P50/P90 generation fan.
+
+export interface Variability {
+  units: string
+  p10: number[]
+  p50: number[]
+  p90: number[]
+}
+
+const fanSchema = z.object({
+  impact_fan: z.object({
+    units: z.string(),
+    p10: z.array(z.number()),
+    p50: z.array(z.number()),
+    p90: z.array(z.number()),
+  }),
+})
+
+export async function fetchVariability(lat: number, lng: number, layerId: string): Promise<Variability> {
+  const params =
+    layerId === 'wind'
+      ? { kind: 'wind', rated_power_kw: 3000, n_turbines: 10 }
+      : { kind: 'solar', dc_capacity_kw: 100000, surface_tilt: 25, surface_azimuth: 180, gamma_pdc: -0.004, system_loss: 0.14, ac_dc_ratio: 1.2 }
+  const res = await fetch('/api/operational/assess', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vertical: 'energy',
+      asset: { name: 'chosen site', lat, lon: lng, vertical: 'energy', params },
+      thresholds: [],
+      hours: 48,
+    }),
+  })
+  if (!res.ok) throw new Error(`Variability request failed (${res.status})`)
+  const json: unknown = await res.json()
+  const fan = fanSchema.parse(json).impact_fan
+  return { units: fan.units, p10: fan.p10, p50: fan.p50, p90: fan.p90 }
+}
+
 // --- "why this site" briefing (on demand; degrades to null without an API key) ---------
 
 export interface SiteBriefing {

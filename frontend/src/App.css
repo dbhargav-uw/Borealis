@@ -385,3 +385,31 @@
   cursor: pointer;
   accent-color: #4ed6ff;
 }
+
+/* --- Act 2: short-term variability --- */
+.variab {
+  margin-top: 10px;
+  border-top: 1px solid #1d2438;
+  padding-top: 10px;
+}
+.variab-btn {
+  background: transparent;
+  border: 1px solid #2a3350;
+  color: #cfd6e6;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.variab-btn:hover {
+  border-color: #4a557a;
+}
+.variab-note {
+  margin: 6px 0 0;
+  font-size: 11px;
+  opacity: 0.6;
+}
+.fan {
+  display: block;
+  margin-top: 4px;
+}

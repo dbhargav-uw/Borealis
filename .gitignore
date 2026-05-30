@@ -18,7 +18,7 @@ frontend/*.local
 # Tooling / verification artifacts
 .playwright-mcp/
 phase1-connected.png
-p?-globe-*.png
+p[0-9]-*.png
 
 # OS / editor
 .DS_Store

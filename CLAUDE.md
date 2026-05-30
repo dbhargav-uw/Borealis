@@ -53,12 +53,12 @@ SuitabilityModel interface: `{ id, name, required_variables, briefing_role,
   metric_units(params), score_cell(cell, params) -> SuitabilityScore }`
 
 ## Status (update as you go)
-Current phase: PIVOT to site selection — P1–P4 complete (backend + globe + LLM seam; set ANTHROPIC_API_KEY for live briefings)
-- [x] P1: shelve forecast-risk to operational/ + ResourceProvider / NASAPowerProvider
-- [x] P2: EnergySuitabilityModel (solar+wind) + generic score_and_rank + POST /api/suitability (live-verified)
-- [x] P3: react-globe.gl heatmap + ranked sites + fly-to + lens toggle (live-verified in browser)
-- [x] P4: "why this site" briefing (claude-sonnet-4-6) + "ask the globe" NL search (degrade gracefully w/o a key)
-- [ ] Later: land/water + other constraints, Global Wind/Solar Atlas, agriculture lens, re-activate Act 2
+Current phase: PIVOT complete — P1–P7 shipped (set ANTHROPIC_API_KEY for live AI briefings + NL search)
+- [x] P1–P4: shelve + ResourceProvider/NASA POWER; suitability + /api/suitability; react-globe.gl globe; LLM briefing + NL search
+- [x] P5: land/water mask constraint + AOI tiler (regions larger than POWER's 10°/axis cap)
+- [x] P6: agriculture suitability vertical (cropland lens) — proves the platform principle (3 lenses, one spine)
+- [x] P7: re-activated the operational Act 2 — pick a site -> its near-term P10/P50/P90 generation fan
+- [ ] Remaining seam: Global Wind/Solar Atlas GeoTIFF enrichment (bankable PVOUT / hub-height CF); extra constraints (protected areas, slope)
 
 ## Working philosophy in this repo
 - MVP first. Always keep the app runnable. Build and verify ONE layer at a time.

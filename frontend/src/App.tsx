@@ -4,6 +4,7 @@ import {
   fetchAsk,
   fetchBriefing,
   fetchSuitability,
+  fetchVariability,
   LAYERS,
   regionCenter,
   type LayerDef,
@@ -11,7 +12,9 @@ import {
   type Region,
   type SiteBriefing,
   type SuitabilityData,
+  type Variability,
 } from './lib/api'
+import { FanChart } from './FanChart'
 import { logger } from './lib/logger'
 import './App.css'
 
@@ -31,6 +34,12 @@ type BriefState =
   | { kind: 'none' }
   | { kind: 'error'; message: string }
 
+type VarState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ok'; data: Variability }
+  | { kind: 'error'; message: string }
+
 function useWindowSize(): { width: number; height: number } {
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
   useEffect(() => {
@@ -48,6 +57,7 @@ export function App(): ReactElement {
   const [activeLayer, setActiveLayer] = useState<string>('solar')
   const [selected, setSelected] = useState<RankedSite | null>(null)
   const [brief, setBrief] = useState<BriefState>({ kind: 'idle' })
+  const [variab, setVariab] = useState<VarState>({ kind: 'idle' })
   const [query, setQuery] = useState<string>('')
   const [asking, setAsking] = useState<boolean>(false)
   const [askError, setAskError] = useState<string | null>(null)
@@ -85,6 +95,7 @@ export function App(): ReactElement {
 
   useEffect(() => {
     setBrief({ kind: 'idle' })
+    setVariab({ kind: 'idle' })
   }, [activeLayer, region])
 
   if (state.kind === 'loading') {
@@ -113,6 +124,7 @@ export function App(): ReactElement {
   const unit = state.data.units[activeLayer] ?? ''
   const onPick = (site: RankedSite): void => {
     setSelected(site)
+    setVariab({ kind: 'idle' })
     globeRef.current?.flyTo(site.lat, site.lng)
   }
   const onAsk = (e: FormEvent): void => {
@@ -141,6 +153,19 @@ export function App(): ReactElement {
         setBrief(b ? { kind: 'ok', briefing: b } : { kind: 'none' })
       } catch (err) {
         setBrief({ kind: 'error', message: err instanceof Error ? err.message : 'Briefing failed' })
+      }
+    })()
+  }
+  const onVariability = (): void => {
+    if (!selected) return
+    const site = selected
+    setVariab({ kind: 'loading' })
+    void (async (): Promise<void> => {
+      try {
+        const d = await fetchVariability(site.lat, site.lng, activeLayer)
+        setVariab({ kind: 'ok', data: d })
+      } catch (err) {
+        setVariab({ kind: 'error', message: err instanceof Error ? err.message : 'Forecast failed' })
       }
     })()
   }
@@ -268,6 +293,23 @@ export function App(): ReactElement {
               <li key={i}>{c}</li>
             ))}
           </ul>
+          {layer.vertical === 'energy' && (
+            <div className="variab">
+              {variab.kind === 'idle' && (
+                <button type="button" className="variab-btn" onClick={onVariability}>
+                  ▸ Short-term variability (Act 2)
+                </button>
+              )}
+              {variab.kind === 'loading' && <p className="variab-note">Fetching live forecast…</p>}
+              {variab.kind === 'error' && <p className="variab-note">{variab.message}</p>}
+              {variab.kind === 'ok' && (
+                <>
+                  <FanChart data={variab.data} accent={accent} />
+                  <p className="variab-note">Next 48 h generation · P10–P90 ({variab.data.units})</p>
+                </>
+              )}
+            </div>
+          )}
         </aside>
       )}
 
