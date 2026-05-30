@@ -6,8 +6,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from briefing import RiskBriefing
-from risk import RiskAssessment, Threshold
+from operational.briefing import RiskBriefing
+from operational.risk import RiskAssessment, Threshold
 from verticals.base import Asset
 
 

@@ -12,8 +12,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from forecast.types import EnsembleForecast
-from risk import RiskAssessment
+from operational.forecast.types import EnsembleForecast
+from operational.risk import RiskAssessment
 from verticals.base import Asset, ImpactEnsemble, VerticalMeta
 
 

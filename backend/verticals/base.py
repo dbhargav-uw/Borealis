@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
-from forecast.types import EnsembleForecast
+if TYPE_CHECKING:
+    # ImpactModel belongs to the deferred operational act; EnsembleForecast is only a
+    # type hint here (annotations are lazy via `from __future__`), so no runtime coupling.
+    from operational.forecast.types import EnsembleForecast
 
 
 class Asset(BaseModel):

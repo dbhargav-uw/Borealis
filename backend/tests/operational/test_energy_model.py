@@ -9,9 +9,9 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pytest
 
-from forecast.types import EnsembleForecast
+from operational.energy import EnergyModel
+from operational.forecast.types import EnsembleForecast
 from verticals.base import Asset
-from verticals.energy.model import EnergyModel
 
 MODEL = EnergyModel()
 

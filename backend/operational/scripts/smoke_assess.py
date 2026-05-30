@@ -1,6 +1,6 @@
 """End-to-end smoke test: real Open-Meteo ensemble -> EnergyModel -> assess_risk.
 
-Run:  cd backend && uv run python scripts/smoke_assess.py
+Run:  cd backend && uv run python operational/scripts/smoke_assess.py
 
 Proves the whole spine on LIVE data (no HTTP server needed). Prints members, the UTC
 window, and the P10/P50/P90 generation fan for a solar plant and a wind farm.
@@ -12,13 +12,13 @@ import asyncio
 import pathlib
 import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # backend/ on path
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))  # backend/ on path
 
-import verticals.energy  # noqa: E402,F401  -- registers the energy model
-from forecast import get_provider  # noqa: E402
-from forecast.types import EnsembleForecast  # noqa: E402
+import operational  # noqa: E402,F401  -- registers the operational energy model
+from operational.forecast import get_provider  # noqa: E402
+from operational.forecast.types import EnsembleForecast  # noqa: E402
+from operational.risk import RiskAssessment, Threshold, assess_risk  # noqa: E402
 from registry import get_impact_model  # noqa: E402
-from risk import RiskAssessment, Threshold, assess_risk  # noqa: E402
 from verticals.base import Asset  # noqa: E402
 
 

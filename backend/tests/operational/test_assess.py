@@ -7,9 +7,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
 
-import api.assess as assess_module
+import operational.assess as assess_module
 from api.main import app
-from forecast.types import EnsembleForecast
+from operational.forecast.types import EnsembleForecast
 
 client = TestClient(app)
 
@@ -60,7 +60,7 @@ def test_assess_energy_solar_ok(mock_provider: None) -> None:
         "thresholds": [{"name": "below_bid_floor", "direction": "below", "value": 40.0}],
         "hours": 24,
     }
-    resp = client.post("/api/assess", json=body)
+    resp = client.post("/api/operational/assess", json=body)
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert set(data) == {"forecast_summary", "impact_fan", "risk", "briefing"}
@@ -80,7 +80,7 @@ def test_assess_unknown_vertical_404(mock_provider: None) -> None:
         "asset": {"name": "x", "lat": 0, "lon": 0, "vertical": "nope"},
         "thresholds": [],
     }
-    resp = client.post("/api/assess", json=body)
+    resp = client.post("/api/operational/assess", json=body)
     assert resp.status_code == 404
     data = resp.json()
     assert data["code"] == "unknown_vertical"
@@ -89,13 +89,13 @@ def test_assess_unknown_vertical_404(mock_provider: None) -> None:
 
 def test_assess_malformed_body_422(mock_provider: None) -> None:
     body = {"vertical": "energy", "asset": SOLAR_ASSET, "hours": 500}  # hours > 168
-    resp = client.post("/api/assess", json=body)
+    resp = client.post("/api/operational/assess", json=body)
     assert resp.status_code == 422
 
 
 def test_assess_bad_params_422(mock_provider: None) -> None:
     bad = {**SOLAR_ASSET, "params": {"kind": "solar"}}  # missing dc_capacity_kw
-    resp = client.post("/api/assess", json={"vertical": "energy", "asset": bad, "hours": 24})
+    resp = client.post("/api/operational/assess", json={"vertical": "energy", "asset": bad, "hours": 24})
     assert resp.status_code == 422
     assert resp.json()["code"] in {"invalid_impact", "validation_error"}
 
@@ -106,7 +106,7 @@ def test_assess_provider_error_502(monkeypatch: pytest.MonkeyPatch) -> None:
             raise RuntimeError("upstream down")
 
     monkeypatch.setattr(assess_module, "get_provider", lambda base_url=None: _Boom())
-    resp = client.post("/api/assess", json={"vertical": "energy", "asset": SOLAR_ASSET, "hours": 24})
+    resp = client.post("/api/operational/assess", json={"vertical": "energy", "asset": SOLAR_ASSET, "hours": 24})
     assert resp.status_code == 502
     assert resp.json()["code"] == "forecast_provider_error"
 
@@ -127,7 +127,7 @@ def test_assess_energy_wind_ok(mock_provider: None) -> None:
         "thresholds": [{"name": "below_10MW", "direction": "below", "value": 10.0}],
         "hours": 24,
     }
-    resp = client.post("/api/assess", json=body)
+    resp = client.post("/api/operational/assess", json=body)
     assert resp.status_code == 200, resp.text
     data = resp.json()
     assert data["impact_fan"]["units"] == "MW"
