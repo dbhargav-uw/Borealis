@@ -30,10 +30,16 @@ python3.12 -m venv .venv
 Requires Python 3.10+ (this venv uses 3.12) and an Apple-Silicon Mac (MLX/Metal).
 
 ## Models
-Target models live under `~/Downloads/Models`. A "model" is any directory
-containing a `config.json`. The matching DFlash **draft** is auto-resolved from
-the [z-lab HuggingFace registry](https://huggingface.co/z-lab) for supported
-targets, so you usually only need the target.
+The **default target** is
+[`mlx-community/Qwen3.6-35B-A3B-4bit`](https://huggingface.co/mlx-community/Qwen3.6-35B-A3B-4bit)
+(a 4-bit MLX build, ~20 GB) — used automatically when no `MODEL` is set and no
+local model is found, pulled straight from HuggingFace on first run.
+
+Local target models live under `~/Downloads/Models`. A "model" is any directory
+containing a `config.json`; a single local model there takes precedence over the
+default. The matching DFlash **draft** is auto-resolved from the
+[z-lab HuggingFace registry](https://huggingface.co/z-lab) for supported targets
+(here, `z-lab/Qwen3.6-35B-A3B-DFlash`), so you usually only need the target.
 
 Supported target → draft pairs (`dflash models`):
 
@@ -52,13 +58,14 @@ Supported target → draft pairs (`dflash models`):
 
 ## Run
 ```bash
-./serve.sh                          # auto-discovers the model in ~/Downloads/Models
+./serve.sh                          # default: mlx-community/Qwen3.6-35B-A3B-4bit (or a local model if present)
 MODEL="Qwen3.6-27B-4bit" ./serve.sh # pick a model by folder name
 MODEL=/abs/path/to/model ./serve.sh # or an absolute path / HF repo id
 PORT=8001 ./serve.sh                # change the port (default 8000)
 DRAFT=/abs/path/to/draft ./serve.sh # force a local draft (otherwise auto-resolved)
 ```
-Env vars: `MODEL`, `DRAFT`, `MODELS_DIR` (default `~/Downloads/Models`),
+Env vars: `MODEL`, `DEFAULT_MODEL` (default `mlx-community/Qwen3.6-35B-A3B-4bit`),
+`DRAFT`, `MODELS_DIR` (default `~/Downloads/Models`),
 `HOST` (default `127.0.0.1`), `PORT` (default `8000`). Any extra args are passed
 straight through to `dflash serve` (run `.venv/bin/dflash serve --help` for the
 full list, e.g. `--temp`, `--max-tokens`, `--enable-thinking`).

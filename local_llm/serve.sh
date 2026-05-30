@@ -25,6 +25,11 @@ MODELS_DIR="${MODELS_DIR:-$HOME/Downloads/Models}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8000}"
 
+# Default target when none is set and nothing is found locally: pull this
+# 4-bit MLX build from HuggingFace. Its DFlash draft (z-lab/Qwen3.6-35B-A3B-DFlash)
+# auto-resolves from the z-lab registry.
+DEFAULT_MODEL="${DEFAULT_MODEL:-mlx-community/Qwen3.6-35B-A3B-4bit}"
+
 if [[ ! -x "$DFLASH" ]]; then
   echo "error: dflash CLI not found at $DFLASH" >&2
   echo "       create the venv and install:  python3.12 -m venv .venv && .venv/bin/python -m pip install -r requirements.txt" >&2
@@ -41,8 +46,8 @@ resolve_model() {
     return
   fi
   if [[ ! -d "$MODELS_DIR" ]]; then
-    echo "error: models dir not found: $MODELS_DIR (set MODELS_DIR or MODEL)" >&2
-    exit 1
+    echo "$DEFAULT_MODEL"   # nothing local; fall back to the HuggingFace default
+    return
   fi
   local candidates=()
   while IFS= read -r cfg; do
@@ -52,9 +57,8 @@ resolve_model() {
   done < <(find "$MODELS_DIR" -maxdepth 2 -name config.json 2>/dev/null)
 
   if [[ ${#candidates[@]} -eq 0 ]]; then
-    echo "error: no model (dir with config.json) found under $MODELS_DIR" >&2
-    echo "       set MODEL to a path or HuggingFace repo id." >&2
-    exit 1
+    echo "$DEFAULT_MODEL"   # nothing local; fall back to the HuggingFace default
+    return
   elif [[ ${#candidates[@]} -gt 1 ]]; then
     echo "error: multiple models found under $MODELS_DIR — set MODEL to choose one:" >&2
     printf '         - %s\n' "${candidates[@]}" >&2
@@ -90,9 +94,32 @@ else
   echo "  draft model  : (auto-resolved from z-lab registry)"
 fi
 echo "  endpoint     : http://$HOST:$PORT/v1"
+# Thinking is OFF by default — this model's chat template enables it otherwise.
+# Re-enable with THINKING=1 ./serve.sh if you ever want reasoning traces.
+if [[ "${THINKING:-0}" == "1" ]]; then
+  echo "  thinking     : on"
+else
+  echo "  thinking     : off"
+fi
 echo
 
 ARGS=(serve --model "$MODEL_PATH" --host "$HOST" --port "$PORT")
 [[ -n "$DRAFT_PATH" ]] && ARGS+=(--draft "$DRAFT_PATH")
+if [[ "${THINKING:-0}" == "1" ]]; then
+  ARGS+=(--enable-thinking)
+else
+  ARGS+=(--chat-template-args '{"enable_thinking": false}')
+fi
 
-exec "$DFLASH" "${ARGS[@]}" "$@"
+# Run forever: keep the server up, restarting it if it ever exits/crashes.
+# Set RESTART=0 to run a single instance in the foreground instead.
+if [[ "${RESTART:-1}" == "0" ]]; then
+  exec "$DFLASH" "${ARGS[@]}" "$@"
+fi
+
+trap 'echo; echo "serve.sh: shutting down"; exit 0' INT TERM
+while true; do
+  "$DFLASH" "${ARGS[@]}" "$@" || true
+  echo "serve.sh: server exited (code $?). Restarting in 3s… (Ctrl-C to stop)" >&2
+  sleep 3
+done
