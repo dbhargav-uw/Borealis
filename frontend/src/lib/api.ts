@@ -1,21 +1,123 @@
-// Typed client for the Borealis backend. All external input is validated with
-// Zod before it crosses into the app (project rule).
+// Typed client for the Borealis site-selection API. Calls POST /api/suitability for BOTH
+// lenses so the solar/wind toggle is instant and offline. Backend lat/lon -> globe lat/lng
+// is mapped here at the boundary. All external input validated with Zod.
 
 import { z } from 'zod'
 
-export const healthSchema = z.object({
-  status: z.string(),
-  service: z.string(),
-  version: z.string(),
+export type Lens = 'solar' | 'wind'
+
+export interface Region {
+  lat_min: number
+  lon_min: number
+  lat_max: number
+  lon_max: number
+}
+
+export interface SuitabilityCell {
+  lat: number
+  lng: number
+  solarScore: number
+  windScore: number
+}
+
+export interface RankedSite {
+  rank: number
+  lat: number
+  lng: number
+  score: number
+  metrics: Record<string, number>
+  caveats: string[]
+}
+
+export interface SuitabilityData {
+  region: Region
+  cells: SuitabilityCell[]
+  sites: Record<Lens, RankedSite[]>
+  units: Record<Lens, string>
+}
+
+const cellSchema = z.object({
+  lat: z.number(),
+  lon: z.number(),
+  score: z.number(),
+  metrics: z.record(z.string(), z.number()),
 })
 
-export type Health = z.infer<typeof healthSchema>
+const rankedSchema = z.object({
+  rank: z.number(),
+  lat: z.number(),
+  lon: z.number(),
+  score: z.number(),
+  metrics: z.record(z.string(), z.number()),
+  caveats: z.array(z.string()),
+})
 
-export async function fetchHealth(): Promise<Health> {
-  const res = await fetch('/health')
+const responseSchema = z.object({
+  region: z.object({
+    lat_min: z.number(),
+    lon_min: z.number(),
+    lat_max: z.number(),
+    lon_max: z.number(),
+  }),
+  resolution: z.number(),
+  metric_units: z.string(),
+  n_cells: z.number(),
+  cells: z.array(cellSchema),
+  ranked_sites: z.array(rankedSchema),
+})
+
+type LensResponse = z.infer<typeof responseSchema>
+type RankedRaw = z.infer<typeof rankedSchema>
+
+async function fetchLens(region: Region, lens: Lens): Promise<LensResponse> {
+  const res = await fetch('/api/suitability', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      vertical: 'energy',
+      region,
+      resolution: 0.5,
+      params: { lens },
+      top_n: 5,
+    }),
+  })
   if (!res.ok) {
-    throw new Error(`Backend /health responded ${res.status}`)
+    let detail = ''
+    try {
+      const body: unknown = await res.json()
+      if (body && typeof body === 'object' && 'error' in body) {
+        detail = `: ${String((body as { error: unknown }).error)}`
+      }
+    } catch {
+      detail = ''
+    }
+    throw new Error(`Suitability request failed (${res.status})${detail}`)
   }
   const json: unknown = await res.json()
-  return healthSchema.parse(json)
+  return responseSchema.parse(json)
+}
+
+function toSite(s: RankedRaw): RankedSite {
+  return { rank: s.rank, lat: s.lat, lng: s.lon, score: s.score, metrics: s.metrics, caveats: s.caveats }
+}
+
+export async function fetchSuitability(region: Region): Promise<SuitabilityData> {
+  const [solar, wind] = await Promise.all([fetchLens(region, 'solar'), fetchLens(region, 'wind')])
+  const windScoreByKey = new Map(wind.cells.map((c) => [`${c.lat},${c.lon}`, c.score]))
+  const cells: SuitabilityCell[] = solar.cells.map((c) => ({
+    lat: c.lat,
+    lng: c.lon,
+    solarScore: c.score,
+    windScore: windScoreByKey.get(`${c.lat},${c.lon}`) ?? 0,
+  }))
+  return {
+    region,
+    cells,
+    sites: { solar: solar.ranked_sites.map(toSite), wind: wind.ranked_sites.map(toSite) },
+    units: { solar: solar.metric_units, wind: wind.metric_units },
+  }
+}
+
+export function regionCenter(r: Region): { lat: number; lng: number } {
+  return { lat: (r.lat_min + r.lat_max) / 2, lng: (r.lon_min + r.lon_max) / 2 }
 }
