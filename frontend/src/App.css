@@ -7,6 +7,24 @@
   gap: 12px;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.brand h1 {
+  margin: 0;
+}
+
+.brand__mark {
+  width: 56px;
+  height: 56px;
+  display: block;
+  filter: drop-shadow(0 4px 16px rgba(34, 211, 238, 0.25));
+}
+
 .tagline {
   margin: 0 0 8px;
   opacity: 0.8;

@@ -1,0 +1,44 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Borealis mark">
+  <defs>
+    <linearGradient id="aurora" x1="40" y1="60" x2="216" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="0.4" stop-color="#22D3EE"/>
+      <stop offset="0.72" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="globe" x1="78" y1="96" x2="190" y2="216" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1E3A5F"/>
+      <stop offset="1" stop-color="#0B1B33"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#22D3EE" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="globeClip">
+      <circle cx="128" cy="150" r="64"/>
+    </clipPath>
+  </defs>
+
+  <!-- background tile -->
+  <rect width="256" height="256" rx="56" fill="#070E1C"/>
+  <circle cx="128" cy="138" r="96" fill="url(#glow)"/>
+
+  <!-- globe -->
+  <circle cx="128" cy="150" r="64" fill="url(#globe)" stroke="#2D4B73" stroke-width="2"/>
+  <g clip-path="url(#globeClip)" stroke="#3E6491" stroke-width="2" fill="none" opacity="0.75">
+    <!-- latitudes -->
+    <line x1="64" y1="128" x2="192" y2="128"/>
+    <line x1="64" y1="150" x2="192" y2="150"/>
+    <line x1="64" y1="172" x2="192" y2="172"/>
+    <!-- longitudes -->
+    <ellipse cx="128" cy="150" rx="22" ry="64"/>
+    <ellipse cx="128" cy="150" rx="46" ry="64"/>
+  </g>
+
+  <!-- aurora ribbons arcing over the pole -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M44 92 C 92 44, 164 44, 212 92" stroke="url(#aurora)" stroke-width="14" opacity="0.95"/>
+    <path d="M58 110 C 98 70, 158 70, 198 110" stroke="url(#aurora)" stroke-width="9" opacity="0.8"/>
+    <path d="M74 126 C 104 96, 152 96, 182 126" stroke="url(#aurora)" stroke-width="5" opacity="0.6"/>
+  </g>
+</svg>

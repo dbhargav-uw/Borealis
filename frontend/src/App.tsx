@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from 'react'
 import { fetchHealth, type Health } from './lib/api'
 import { logger } from './lib/logger'
+import borealisMark from './assets/borealis-mark.svg'
 import './App.css'
 
 type ConnState =
@@ -62,7 +63,10 @@ export function App(): ReactElement {
 
   return (
     <main className="app">
-      <h1>Borealis</h1>
+      <div className="brand">
+        <img className="brand__mark" src={borealisMark} alt="" aria-hidden width={56} height={56} />
+        <h1>Borealis</h1>
+      </div>
       <p className="tagline">Weather-risk decision platform · Phase 1 scaffold</p>
       <StatusPanel state={state} />
     </main>
