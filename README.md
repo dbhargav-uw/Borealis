@@ -1,4 +1,6 @@
-# Borealis
+<p align="center">
+  <img src="assets/brand/borealis-logo-dark.svg" alt="Borealis" width="440" />
+</p>
 
 Weather-risk **decision** platform. One generic spine — ensemble forecast →
 impact model → percentile risk → AI briefing → 3D globe — shared across four
