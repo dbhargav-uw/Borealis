@@ -174,7 +174,7 @@ export function AnalysisDossier({
               </ul>
             ) : (
               <p className="dossier-fine">
-                AI considerations unavailable — set <code>ANTHROPIC_API_KEY</code> to enable the synthesis.
+                AI considerations unavailable — set <code>GEMINI_API_KEY</code> to enable the synthesis.
               </p>
             )}
           </Section>
@@ -185,7 +185,7 @@ export function AnalysisDossier({
               <p className="dossier-read">{data.summary}</p>
             ) : (
               <p className="dossier-fine">
-                AI summary unavailable — set <code>ANTHROPIC_API_KEY</code>. The structured sections above stand alone.
+                AI summary unavailable — set <code>GEMINI_API_KEY</code>. The structured sections above stand alone.
               </p>
             )}
           </Section>

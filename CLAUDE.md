@@ -94,7 +94,7 @@ SuitabilityModel interface: `{ id, name, required_variables, briefing_role,
 
 ## Status (update as you go)
 Current phase: front-experience repivot to weather-map -> building -> hazard sim (suitability is contextual).
-Set ANTHROPIC_API_KEY for live building-parse + briefings; VITE_CESIUM_ION_TOKEN in frontend/.env for the
+Set GEMINI_API_KEY for live building-parse + briefings; VITE_CESIUM_ION_TOKEN in frontend/.env for the
 premium Bing/World-Terrain earth + the ion geocoder.
 - [x] P1–P8: site-selection spine + Cesium/resium globe + continuous global field textures (solar/wind/temp,
       `scripts/bake_field_textures.py`) + `/api/seasonal` (all PRESERVED, now contextual)
@@ -257,7 +257,7 @@ no-renders on 1.141, and the interim CPU `PointPrimitiveCollection`/`PolylineGlo
 - Bake the global field textures: `cd backend && uv run python scripts/bake_field_textures.py`
   (per-tile cached/resumable in backend/.cache/; `--bbox lat_min,lon_min,lat_max,lon_max` to scope down)
 - Frontend dev: `cd frontend && npm run dev`
-- Env: copy `.env.example` to `.env` (NASA POWER needs no key; set ANTHROPIC_API_KEY for AI). For the
+- Env: copy `.env.example` to `.env` (NASA POWER needs no key; set GEMINI_API_KEY for AI). For the
   premium earth, put `VITE_CESIUM_ION_TOKEN=` in `frontend/.env` (free tier; offline fallback without it).
 
 ## Domain notes and gotchas

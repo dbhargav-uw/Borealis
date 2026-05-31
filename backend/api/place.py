@@ -50,7 +50,7 @@ async def place(req: PlaceRequest) -> PlaceResponse:
     settings = get_settings()
     try:
         q: BuildingQuery = await parse_building_query(
-            query=req.query, model=settings.briefing_model, api_key=settings.anthropic_api_key
+            query=req.query, model=settings.briefing_model, api_key=settings.gemini_api_key
         )
     except BriefingUnavailable as exc:
         raise HTTPException(
@@ -92,7 +92,7 @@ async def hazard_briefing(req: HazardBriefingRequest) -> HazardBriefingResponse:
             place_name=req.place_name,
             scenario=req.scenario,
             model=settings.briefing_model,
-            api_key=settings.anthropic_api_key,
+            api_key=settings.gemini_api_key,
         )
         return HazardBriefingResponse(briefing=briefing)
     except BriefingUnavailable as exc:

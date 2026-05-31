@@ -5,7 +5,7 @@ the computed numbers (ranked sites + metrics) and explains WHY the top region sc
 — it NEVER invents or alters a number, and ALWAYS carries the "climatology, not bankable
 yield" caveat. Parameterized by the vertical's briefing_role.
 
-Degrades gracefully: with no ANTHROPIC_API_KEY (or any API failure) it raises
+Degrades gracefully: with no GEMINI_API_KEY (or any API failure) it raises
 BriefingUnavailable, and the route returns briefing=None — the suitability result is the
 core product; the briefing is additive.
 """
@@ -30,7 +30,7 @@ class SiteBriefing(BaseModel):
 
 
 class BriefingUnavailable(RuntimeError):
-    """No ANTHROPIC_API_KEY configured, or the briefing service failed."""
+    """No GEMINI_API_KEY configured, or the briefing service failed."""
 
 
 _SYSTEM = """You are a {briefing_role} for Borealis, a renewable SITE-SELECTION platform. \
@@ -79,9 +79,9 @@ async def generate_site_briefing(
     model: str = DEFAULT_BRIEFING_MODEL,
     api_key: str | None = None,
 ) -> SiteBriefing:
-    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
-        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+        raise BriefingUnavailable("GEMINI_API_KEY not configured")
 
     system = [
         {
@@ -140,9 +140,9 @@ async def parse_globe_query(
     model: str = DEFAULT_BRIEFING_MODEL,
     api_key: str | None = None,
 ) -> GlobeQuery:
-    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
-        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+        raise BriefingUnavailable("GEMINI_API_KEY not configured")
     system = [{"type": "text", "text": _QUERY_SYSTEM, "cache_control": {"type": "ephemeral"}}]
     try:
         async with anthropic.AsyncAnthropic(api_key=key) as client:
@@ -213,9 +213,9 @@ async def parse_building_query(
     model: str = DEFAULT_BRIEFING_MODEL,
     api_key: str | None = None,
 ) -> BuildingQuery:
-    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
-        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+        raise BriefingUnavailable("GEMINI_API_KEY not configured")
     system = [{"type": "text", "text": _PLACE_SYSTEM, "cache_control": {"type": "ephemeral"}}]
     try:
         async with anthropic.AsyncAnthropic(api_key=key) as client:
@@ -273,9 +273,9 @@ async def parse_best_site_query(
     model: str = DEFAULT_BRIEFING_MODEL,
     api_key: str | None = None,
 ) -> BestSiteQuery:
-    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
-        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+        raise BriefingUnavailable("GEMINI_API_KEY not configured")
     system = [{"type": "text", "text": _BESTSITE_SYSTEM, "cache_control": {"type": "ephemeral"}}]
     try:
         async with anthropic.AsyncAnthropic(api_key=key) as client:
@@ -328,9 +328,9 @@ async def generate_best_site_explanation(
 ) -> BestSiteExplanation:
     import json
 
-    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
-        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+        raise BriefingUnavailable("GEMINI_API_KEY not configured")
     system = [{"type": "text", "text": _WHY_HERE_SYSTEM, "cache_control": {"type": "ephemeral"}}]
     user = (
         f"Region: {region_label}\nObjective: {objective}\n"
@@ -416,9 +416,9 @@ async def generate_analysis_briefing(
     model: str = DEFAULT_BRIEFING_MODEL,
     api_key: str | None = None,
 ) -> AnalysisBriefing:
-    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
-        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+        raise BriefingUnavailable("GEMINI_API_KEY not configured")
     system = [{"type": "text", "text": _ANALYSIS_SYSTEM, "cache_control": {"type": "ephemeral"}}]
     user = _analysis_payload(location, resource, hazards)
     try:
@@ -471,9 +471,9 @@ async def generate_hazard_briefing(
     model: str = DEFAULT_BRIEFING_MODEL,
     api_key: str | None = None,
 ) -> HazardBriefing:
-    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    key = api_key or os.getenv("GEMINI_API_KEY")
     if not key:
-        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+        raise BriefingUnavailable("GEMINI_API_KEY not configured")
     details = "\n".join(f"  {k}: {v}" for k, v in scenario.items())
     user = (
         f"Hazard: {kind}\nBuilding: {building_label}\nLocation: {place_name}\nScenario numbers:\n{details}\n"

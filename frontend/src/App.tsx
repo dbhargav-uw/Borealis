@@ -756,7 +756,7 @@ export function App(): ReactElement {
                 {hazardBrief.kind === 'loading' ? 'Explaining…' : '✨ Explain exposure'}
               </button>
               {hazardBrief.kind === 'none' && (
-                <p className="place-hint">AI explanation unavailable — set <code>ANTHROPIC_API_KEY</code>.</p>
+                <p className="place-hint">AI explanation unavailable — set <code>GEMINI_API_KEY</code>.</p>
               )}
               {hazardBrief.kind === 'ok' && (
                 <>
@@ -801,7 +801,7 @@ export function App(): ReactElement {
           {brief.kind === 'loading' && <p className="brief-loading">Generating “why this site” briefing…</p>}
           {brief.kind === 'none' && (
             <p className="brief-none">
-              AI briefing unavailable — set <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to enable it.
+              AI briefing unavailable — set <code>GEMINI_API_KEY</code> in <code>.env</code> to enable it.
             </p>
           )}
           {brief.kind === 'error' && <p className="brief-none">Briefing failed: {brief.message}</p>}

@@ -123,7 +123,7 @@ async def _run(query: str) -> BestSiteResponse:
     settings = get_settings()
     try:
         q: BestSiteQuery = await parse_best_site_query(
-            query=query, model=settings.briefing_model, api_key=settings.anthropic_api_key
+            query=query, model=settings.briefing_model, api_key=settings.gemini_api_key
         )
     except BriefingUnavailable as exc:
         raise HTTPException(
@@ -202,7 +202,7 @@ async def _run(query: str) -> BestSiteResponse:
             best=best.model_dump(),
             candidates=[c.model_dump() for c in candidates[1:]],
             model=settings.briefing_model,
-            api_key=settings.anthropic_api_key,
+            api_key=settings.gemini_api_key,
         )
     except BriefingUnavailable as exc:
         logger.info("best-site explanation unavailable: %s", exc)

@@ -1,7 +1,7 @@
 """Application settings, loaded from the repo-root .env (or process env).
 
 Secrets live only in .env (never committed). Everything here has a safe default
-so the app boots with no .env present (Phase 1) — ANTHROPIC_API_KEY stays None
+so the app boots with no .env present (Phase 1) — GEMINI_API_KEY stays None
 until the briefing layer (Phase 3) needs it.
 """
 
@@ -24,9 +24,10 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Anthropic key for the "why this site" briefing + NL search (P4). Optional — the
-    # product works without it (briefing degrades to null).
-    anthropic_api_key: str | None = None
+    # API key for the "why this site" briefing + NL search (P4) — read from GEMINI_API_KEY,
+    # still passed to the Anthropic SDK. Optional — the product works without it (briefing
+    # degrades to null).
+    gemini_api_key: str | None = None
     briefing_model: str = "claude-sonnet-4-6"
 
     # Frontend dev origin allowed through CORS.

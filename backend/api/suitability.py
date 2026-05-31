@@ -139,7 +139,7 @@ async def suitability(req: SuitabilityRequest) -> SuitabilityResponse:
                 ranked_sites=[rs.model_dump() for rs in result.ranked_sites],
                 briefing_role=model.meta().briefing_role,
                 model=settings.briefing_model,
-                api_key=settings.anthropic_api_key,
+                api_key=settings.gemini_api_key,
             )
         except BriefingUnavailable as exc:
             logger.info("briefing unavailable: %s", exc)
@@ -191,7 +191,7 @@ async def ask(req: AskRequest) -> AskResponse:
     settings = get_settings()
     try:
         q: GlobeQuery = await parse_globe_query(
-            query=req.query, model=settings.briefing_model, api_key=settings.anthropic_api_key
+            query=req.query, model=settings.briefing_model, api_key=settings.gemini_api_key
         )
     except BriefingUnavailable as exc:
         raise HTTPException(

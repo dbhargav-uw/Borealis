@@ -416,7 +416,7 @@ async def _run(req: AnalysisRequest) -> AnalysisResponse:
             resource=resource.model_dump(),
             hazards=hazards.model_dump(),
             model=settings.briefing_model,
-            api_key=settings.anthropic_api_key,
+            api_key=settings.gemini_api_key,
         )
         insurance, summary = brief.insurance, brief.summary
     except BriefingUnavailable as exc:

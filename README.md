@@ -62,7 +62,7 @@ frontend/     Vite + React + TS; CesiumJS globe via resium
 ## Setup
 
 ```bash
-cp .env.example .env        # set ANTHROPIC_API_KEY for NL parse + AI briefings
+cp .env.example .env        # set GEMINI_API_KEY for NL parse + AI briefings
 ```
 
 For the premium earth + geocoder, put a (free-tier) Cesium ion token in `frontend/.env`:

@@ -64,7 +64,7 @@ class _FakeProvider:
 # --- generate_site_briefing -----------------------------------------------------------
 
 def test_generate_no_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     with pytest.raises(brf.BriefingUnavailable):
         asyncio.run(
             brf.generate_site_briefing(
@@ -98,7 +98,7 @@ def test_parse_query_mocked(monkeypatch: pytest.MonkeyPatch) -> None:
 # --- routes ---------------------------------------------------------------------------
 
 def test_suitability_briefing_null_without_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setattr(suit_module, "select_resource_provider", lambda *a, **k: _FakeProvider())
     body = {"vertical": "energy", "region": REGION, "params": {"lens": "solar"}, "include_briefing": True}
     resp = client.post("/api/suitability", json=body)
@@ -120,7 +120,7 @@ def test_suitability_briefing_populated(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_ask_503_without_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     resp = client.post("/api/ask", json={"query": "best solar sites in spain"})
     assert resp.status_code == 503
     assert resp.json()["code"] == "llm_unavailable"
