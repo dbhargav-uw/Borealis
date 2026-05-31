@@ -11,6 +11,7 @@ import { Entity, ImageryLayer, Viewer, useCesium, type CesiumComponentRef } from
 import {
   buildModuleUrl,
   CallbackPositionProperty,
+  CallbackProperty,
   Cartesian2,
   Cartesian3,
   Cartographic,
@@ -22,17 +23,21 @@ import {
   defined,
   Entity as CesiumEntity,
   HeadingPitchRange,
+  HeadingPitchRoll,
   Ion,
   IonGeocoderService,
   IonImageryProvider,
   LabelStyle,
   Math as CesiumMath,
   NearFarScalar,
+  Quaternion,
   Rectangle,
   sampleTerrainMostDetailed,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   ShadowMode,
+  Transforms,
+  TranslationRotationScale,
   SingleTileImageryProvider,
   TileMapServiceImageryProvider,
   VerticalOrigin,
@@ -49,7 +54,13 @@ import { addCloudLayer, type CloudLayerHandle } from './cloudLayer'
 import { addAlerts } from './hazard/liveAlerts'
 import { addStorms } from './hazard/liveStorms'
 import { addWindFlow } from './hazard/windFlow'
-import { pickBuildingModel } from './buildingModels'
+import {
+  modelKind,
+  pickBuildingModel,
+  SOLAR_PANEL_URL,
+  TURBINE_NATIVE_H,
+  TURBINE_URL,
+} from './buildingModels'
 
 export interface BuildingSpec {
   placeName: string
@@ -70,6 +81,7 @@ export interface BuildingPlacement {
 export interface GlobeHandle {
   flyTo: (lat: number, lng: number, altitude?: number) => void
   placeBuilding: (spec: BuildingSpec) => Promise<BuildingPlacement | null>
+  placeBuildingAt: (lat: number, lng: number, spec: BuildingSpec) => Promise<BuildingPlacement | null>
   clearBuilding: () => void
   startFlood: (opts: FloodOpts) => Promise<FloodStats | null>
   setFloodLevel: (level: number) => void
@@ -97,6 +109,7 @@ interface Props {
 interface Control {
   flyTo: (lat: number, lng: number, altitude?: number) => void
   placeBuilding: (spec: BuildingSpec) => Promise<BuildingPlacement | null>
+  placeBuildingAt: (lat: number, lng: number, spec: BuildingSpec) => Promise<BuildingPlacement | null>
   clearBuilding: () => void
   startFlood: (opts: FloodOpts) => Promise<FloodStats | null>
   setFloodLevel: (level: number) => void
@@ -153,12 +166,15 @@ function GlobeScene({
   const firstFocus = useRef<boolean>(true)
   const cloudRef = useRef<CloudLayerHandle | null>(null)
   const buildingRef = useRef<CesiumEntity | null>(null)
+  const infraRef = useRef<CesiumEntity[]>([]) // solar-array panels / wind-turbine cluster (multi-entity)
+  const rotorSpinRef = useRef<(() => void) | null>(null) // removes the blade-spin preRender listener
   const osmRef = useRef<Cesium3DTileset | null>(null) // Cesium OSM Buildings (lazy; loaded once, shown on placement)
   const osmLoadingRef = useRef<boolean>(false)
   const hazardRef = useRef<{ dispose: () => void; setLevel?: (level: number) => void } | null>(null)
   // LIVE layer click-resolution + zoom-change callback (refs so the stable pick/camera handlers see latest).
   const stormsDataRef = useRef<Storm[]>(storms ?? [])
   const alertsDataRef = useRef<Alert[]>(alerts ?? [])
+  const windGridRef = useRef<GridWind | null | undefined>(windGrid) // latest wind grid for turbine yaw
   const onStormClickRef = useRef(onStormClick)
   const onAlertClickRef = useRef(onAlertClick)
   const onZoomChangeRef = useRef(onZoomChange)
@@ -166,6 +182,7 @@ function GlobeScene({
   sitesRef.current = sites
   stormsDataRef.current = storms ?? []
   alertsDataRef.current = alerts ?? []
+  windGridRef.current = windGrid
   onStormClickRef.current = onStormClick
   onAlertClickRef.current = onAlertClick
   onZoomChangeRef.current = onZoomChange
@@ -294,10 +311,16 @@ function GlobeScene({
 
     const clearBuilding = (): void => {
       clearHazard()
+      if (rotorSpinRef.current) {
+        rotorSpinRef.current() // remove the blade-spin preRender listener
+        rotorSpinRef.current = null
+      }
       if (buildingRef.current) {
         viewer.entities.remove(buildingRef.current)
         buildingRef.current = null
       }
+      for (const e of infraRef.current) viewer.entities.remove(e) // solar panels / turbines
+      infraRef.current = []
       // keep OSM Buildings loaded (cheap to re-show) but hide it + drop shadows off the cinematic globe
       if (osmRef.current) osmRef.current.show = false
       viewer.shadows = false
@@ -324,21 +347,25 @@ function GlobeScene({
       }
     }
 
-    const placeBuilding = async (spec: BuildingSpec): Promise<BuildingPlacement | null> => {
-      let lat: number
-      let lng: number
-      try {
-        const results = await geocoder.geocode(spec.placeName)
-        const dest = results[0]?.destination
-        if (!dest) return null
-        const carto = dest instanceof Rectangle ? Rectangle.center(dest) : Cartographic.fromCartesian(dest)
-        lat = CesiumMath.toDegrees(carto.latitude)
-        lng = CesiumMath.toDegrees(carto.longitude)
-      } catch (err) {
-        logger.warn('geocode failed', err)
-        return null
-      }
+    // Shared model placement (terrain-clamp + detailed glTF + OSM context + shadows + fly-to), used by both
+    // the geocoded place flow and the find-best flow (which already has the winning coordinates).
+    const M_PER_DEG = 111320
+    const labelGraphics = (text: string): CesiumEntity.ConstructorOptions['label'] => ({
+      text,
+      font: '600 13px Inter, system-ui, sans-serif',
+      fillColor: Color.WHITE,
+      style: LabelStyle.FILL_AND_OUTLINE,
+      outlineColor: Color.fromCssColorString('#05070f'),
+      outlineWidth: 3,
+      verticalOrigin: VerticalOrigin.BOTTOM,
+      pixelOffset: new Cartesian2(0, -14),
+      showBackground: true,
+      backgroundColor: Color.fromCssColorString('#0b1020').withAlpha(0.7),
+      backgroundPadding: new Cartesian2(6, 4),
+      translucencyByDistance: new NearFarScalar(2.0e5, 1.0, 4.0e6, 0.0),
+    })
 
+    const placeModelAt = async (lat: number, lng: number, spec: BuildingSpec): Promise<BuildingPlacement | null> => {
       let baseHeight = 0
       try {
         const sampled = await sampleTerrainMostDetailed(viewer.terrainProvider, [Cartographic.fromDegrees(lng, lat)])
@@ -348,45 +375,135 @@ function GlobeScene({
       }
 
       clearBuilding()
-      // Detailed glTF model from the curated CC0 library, scaled to the parsed real-world height.
-      const picked = pickBuildingModel({
-        buildingType: spec.buildingType,
-        approxFloors: spec.approxFloors,
-        heightM: spec.heightM,
-        footprintM: spec.footprintM,
-      })
-      const ent = viewer.entities.add(
-        new CesiumEntity({
-          id: 'building',
-          name: spec.label,
-          position: Cartesian3.fromDegrees(lng, lat, baseHeight + picked.baseOffsetM),
-          model: {
-            uri: picked.url,
-            scale: picked.scale,
-            minimumPixelSize: 64, // stays visible when zoomed out
-            maximumScale: 20000,
-            shadows: ShadowMode.ENABLED, // casts + receives sun shadows
-            // accent silhouette so the user's building reads distinct among the OSM city buildings
-            silhouetteColor: BUILDING_GLOW,
-            silhouetteSize: 2.0,
-          },
-          label: {
-            text: spec.label,
-            font: '600 13px Inter, system-ui, sans-serif',
-            fillColor: Color.WHITE,
-            style: LabelStyle.FILL_AND_OUTLINE,
-            outlineColor: Color.fromCssColorString('#05070f'),
-            outlineWidth: 3,
-            verticalOrigin: VerticalOrigin.BOTTOM,
-            pixelOffset: new Cartesian2(0, -14),
-            showBackground: true,
-            backgroundColor: Color.fromCssColorString('#0b1020').withAlpha(0.7),
-            backgroundPadding: new Cartesian2(6, 4),
-            translucencyByDistance: new NearFarScalar(2.0e5, 1.0, 4.0e6, 0.0),
-          },
-        }),
-      )
-      buildingRef.current = ent
+      const kind = modelKind(spec.buildingType)
+      // metres east/north -> lat/lon around the placement center (small-offset flat-earth approx)
+      const offsetDeg = (east: number, north: number): [number, number] => [
+        lat + north / M_PER_DEG,
+        lng + east / (M_PER_DEG * Math.cos(CesiumMath.toRadians(lat))),
+      ]
+      let flyTarget: CesiumEntity | CesiumEntity[]
+      let flyAlt: number
+
+      if (kind === 'solar') {
+        // SOLAR ARRAY: rows of flat PV panels tilted toward the equator at ~site latitude (a real heuristic).
+        const tiltDeg = Math.min(40, Math.max(10, Math.abs(lat)))
+        const pitch = CesiumMath.toRadians(lat >= 0 ? -tiltDeg : tiltDeg) // tilt the panel face toward the equator
+        const rows = 5, cols = 6, dN = 4.2, dE = 2.8
+        const panels: CesiumEntity[] = []
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const [pl, pg] = offsetDeg((c - (cols - 1) / 2) * dE, (r - (rows - 1) / 2) * dN)
+            const pos = Cartesian3.fromDegrees(pg, pl, baseHeight)
+            panels.push(
+              viewer.entities.add(
+                new CesiumEntity({
+                  position: pos,
+                  orientation: Transforms.headingPitchRollQuaternion(pos, new HeadingPitchRoll(0, pitch, 0)),
+                  model: { uri: SOLAR_PANEL_URL, scale: 1.6, shadows: ShadowMode.ENABLED, maximumScale: 800 },
+                }),
+              ),
+            )
+          }
+        }
+        const labelEnt = viewer.entities.add(
+          new CesiumEntity({ id: 'building', position: Cartesian3.fromDegrees(lng, lat, baseHeight), label: labelGraphics(`☀ ${spec.label} · representative solar array`) }),
+        )
+        panels.push(labelEnt)
+        infraRef.current = panels
+        buildingRef.current = labelEnt
+        flyTarget = panels
+        flyAlt = 600
+      } else if (kind === 'wind') {
+        // WIND FARM: a cluster of 3-blade turbines; the rotor node spins slowly; turbines yaw into the wind.
+        const hub = 70 * (spec.heightM ? Math.max(0.6, Math.min(2.0, spec.heightM / 100)) : 1)
+        const scale = hub / TURBINE_NATIVE_H
+        let heading = 0
+        const g = windGridRef.current
+        if (g) {
+          const [latMin, lonMin, latMax, lonMax] = g.bbox
+          const j = Math.min(g.nx - 1, Math.max(0, Math.floor(((lng - lonMin) / (lonMax - lonMin)) * g.nx)))
+          const i = Math.min(g.ny - 1, Math.max(0, Math.floor(((latMax - lat) / (latMax - latMin)) * g.ny)))
+          const u = g.u[i * g.nx + j] ?? 0
+          const v = g.v[i * g.nx + j] ?? 0
+          if (Math.hypot(u, v) > 0.1) heading = Math.atan2(-u, -v) // rotor faces INTO the wind
+        }
+        let spin = 0
+        const onSpin = (): void => {
+          spin += 0.02 // slow, realistic blade rotation
+        }
+        viewer.scene.preRender.addEventListener(onSpin)
+        rotorSpinRef.current = (): void => {
+          viewer.scene.preRender.removeEventListener(onSpin)
+        }
+        const offsets: [number, number][] = [[0, 0], [280, 160], [-240, 210], [210, -250], [-300, -130]]
+        const turbines: CesiumEntity[] = []
+        offsets.forEach(([e, n], i) => {
+          const [pl, pg] = offsetDeg(e, n)
+          const pos = Cartesian3.fromDegrees(pg, pl, baseHeight)
+          const trs = new TranslationRotationScale() // reused per turbine (mutated each frame, no alloc)
+          const quat = new Quaternion()
+          const phase = i * 0.8
+          turbines.push(
+            viewer.entities.add(
+              new CesiumEntity({
+                position: pos,
+                orientation: Transforms.headingPitchRollQuaternion(pos, new HeadingPitchRoll(heading, 0, 0)),
+                model: {
+                  uri: TURBINE_URL,
+                  scale,
+                  minimumPixelSize: 48,
+                  maximumScale: 20000,
+                  shadows: ShadowMode.ENABLED,
+                  nodeTransformations: {
+                    // a CallbackProperty is valid at runtime (PropertyBag resolves it per frame); cast for TS
+                    rotor: new CallbackProperty(() => {
+                      Quaternion.fromAxisAngle(Cartesian3.UNIT_Z, spin + phase, quat)
+                      trs.rotation = quat
+                      return trs
+                    }, false) as unknown as TranslationRotationScale,
+                  },
+                },
+              }),
+            ),
+          )
+        })
+        const labelEnt = viewer.entities.add(
+          new CesiumEntity({ id: 'building', position: Cartesian3.fromDegrees(lng, lat, baseHeight), label: labelGraphics(`🌀 ${spec.label} · representative turbines`) }),
+        )
+        turbines.push(labelEnt)
+        infraRef.current = turbines
+        buildingRef.current = labelEnt
+        flyTarget = turbines
+        flyAlt = hub * 12
+      } else {
+        // BUILDING: detailed glTF model from the curated CC0 library, scaled to the parsed real-world height.
+        const picked = pickBuildingModel({
+          buildingType: spec.buildingType,
+          approxFloors: spec.approxFloors,
+          heightM: spec.heightM,
+          footprintM: spec.footprintM,
+        })
+        const ent = viewer.entities.add(
+          new CesiumEntity({
+            id: 'building',
+            name: spec.label,
+            position: Cartesian3.fromDegrees(lng, lat, baseHeight + picked.baseOffsetM),
+            model: {
+              uri: picked.url,
+              scale: picked.scale,
+              minimumPixelSize: 64,
+              maximumScale: 20000,
+              shadows: ShadowMode.ENABLED,
+              silhouetteColor: BUILDING_GLOW,
+              silhouetteSize: 2.0,
+            },
+            label: labelGraphics(spec.label),
+          }),
+        )
+        buildingRef.current = ent
+        flyTarget = ent
+        flyAlt = Math.max(700, picked.targetHeightM * 9)
+      }
 
       // Real city context + sun shadows, lazily, only now (a placement) — not on the cinematic globe.
       void ensureOsmBuildings()
@@ -394,14 +511,32 @@ function GlobeScene({
 
       spinningRef.current = false
       if (resumeTimer.current !== null) window.clearTimeout(resumeTimer.current)
-      void viewer.flyTo(ent, {
+      void viewer.flyTo(flyTarget, {
         duration: 2.0,
-        offset: new HeadingPitchRange(CesiumMath.toRadians(35), CesiumMath.toRadians(-22), Math.max(700, picked.targetHeightM * 9)),
+        offset: new HeadingPitchRange(CesiumMath.toRadians(35), CesiumMath.toRadians(-22), flyAlt),
       })
       return { lat, lng, baseHeight }
     }
 
-    control.current = { flyTo, placeBuilding, clearBuilding, startFlood, setFloodLevel, startTornado, clearHazard }
+    const placeBuilding = async (spec: BuildingSpec): Promise<BuildingPlacement | null> => {
+      try {
+        const results = await geocoder.geocode(spec.placeName)
+        const dest = results[0]?.destination
+        if (!dest) return null
+        const carto = dest instanceof Rectangle ? Rectangle.center(dest) : Cartographic.fromCartesian(dest)
+        return placeModelAt(CesiumMath.toDegrees(carto.latitude), CesiumMath.toDegrees(carto.longitude), spec)
+      } catch (err) {
+        logger.warn('geocode failed', err)
+        return null
+      }
+    }
+    // find-best flow: place directly at the winning coordinates (no geocode).
+    const placeBuildingAt = (lat: number, lng: number, spec: BuildingSpec): Promise<BuildingPlacement | null> =>
+      placeModelAt(lat, lng, spec)
+
+    control.current = {
+      flyTo, placeBuilding, placeBuildingAt, clearBuilding, startFlood, setFloodLevel, startTornado, clearHazard,
+    }
 
     const spinAxis = Cartesian3.UNIT_Z
     const onTick = (): void => {
@@ -565,6 +700,8 @@ export const ResourceGlobe = forwardRef<GlobeHandle, Props>(function ResourceGlo
         control.current?.flyTo(lat, lng, altitude),
       placeBuilding: (spec: BuildingSpec): Promise<BuildingPlacement | null> =>
         control.current ? control.current.placeBuilding(spec) : Promise.resolve(null),
+      placeBuildingAt: (lat: number, lng: number, spec: BuildingSpec): Promise<BuildingPlacement | null> =>
+        control.current ? control.current.placeBuildingAt(lat, lng, spec) : Promise.resolve(null),
       clearBuilding: (): void => control.current?.clearBuilding(),
       startFlood: (opts: FloodOpts): Promise<FloodStats | null> =>
         control.current ? control.current.startFlood(opts) : Promise.resolve(null),

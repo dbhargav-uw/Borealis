@@ -164,6 +164,9 @@ async def parse_globe_query(
 
 
 class BuildingQuery(BaseModel):
+    # Routing: 'place' = put a building at a specific named location; 'find-best' = search a REGION for the
+    # optimal site and build there (handled by /api/best-site). The frontend routes on this.
+    mode: Literal["place", "find-best"] = "place"
     label: str                                  # short human label, e.g. "Coastal hospital, Miami"
     place_name: str                             # a GEOCODABLE place string, e.g. "Miami, Florida, USA"
     building_type: str                          # e.g. hospital | house | tower | school | warehouse | farm
@@ -182,6 +185,10 @@ _PLACE_SYSTEM = """You turn a natural-language request to place a building into 
 globe that renders a representative detailed model of the building at the geocoded site. Given something like \
 "a coastal hospital in Miami" or "a 40-storey glass office tower in Dubai" or "my house in Tulsa during a \
 tornado", return:
+- `mode`: 'find-best' if the user wants to FIND the best/optimal location WITHIN a region/area/country to build \
+something (e.g. "find the best place in Texas to build a solar farm", "where in Florida should I put a data \
+center"); otherwise 'place' for a specific named location. When 'find-best', set `place_name` to the REGION to \
+search (e.g. "Texas, USA").
 - `label`: a short human label for the building (e.g. "Coastal hospital, Miami").
 - `place_name`: a clean, GEOCODABLE place string (city + region + country where possible), e.g. \
 "Miami, Florida, USA". Do NOT include the building type in place_name.
@@ -218,6 +225,127 @@ async def parse_building_query(
                 system=system,
                 messages=[{"role": "user", "content": query}],
                 output_format=BuildingQuery,
+            )
+    except anthropic.APIError as exc:
+        raise BriefingUnavailable(f"Anthropic API error: {exc}") from exc
+    if resp.parsed_output is None:
+        raise BriefingUnavailable("model returned no structured output")
+    return resp.parsed_output
+
+
+# --- "find the best site in a region": NL -> region bbox + objective + hazard-avoidance ----------
+
+
+class BestSiteQuery(BaseModel):
+    label: str                                  # human label, e.g. "Solar farm in West Texas"
+    region_label: str                           # the region searched, e.g. "West Texas, USA"
+    building_type: str                          # e.g. solar farm | wind farm | data center | hospital | home
+    lat_min: float
+    lon_min: float
+    lat_max: float
+    lon_max: float
+    # The scoring objective: which SuitabilityModel/lens to MAXIMIZE, or 'hazard_min' to chiefly MINIMIZE hazard.
+    objective: Literal["solar", "wind", "crop", "hazard_min"]
+    avoid_flood: bool = False                   # explicit "avoid floods / low-lying" criterion
+    avoid_tornado: bool = False                 # explicit "avoid tornadoes / severe storms" criterion
+
+
+_BESTSITE_SYSTEM = """You translate a "find the best place in <region> to build a <structure>" request into a \
+structured site-search query for a globe that scores a grid over the region.
+
+Return:
+- `label`: short human label (e.g. "Solar farm, West Texas").
+- `region_label`: the region to search (e.g. "West Texas, USA").
+- `building_type`: the structure, lowercase (solar farm, wind farm, data center, hospital, home, warehouse, …).
+- A BOUNDING BOX (`lat_min`/`lon_min`/`lat_max`/`lon_max`, decimal degrees WGS84) covering the region. It must be \
+at most ~10° per axis and at least ~2° per axis; for a large country, zoom to the most relevant core sub-region. \
+Require lat_min<lat_max and lon_min<lon_max; west longitudes are negative.
+- `objective`: what to optimize. Infer from the building type unless stated: solar farm/PV -> 'solar'; wind farm/\
+turbine -> 'wind'; farm/cropland/agriculture -> 'crop'; data center / hospital / home / house / school / warehouse / \
+factory / anything hazard-sensitive -> 'hazard_min' (chiefly minimize hazard exposure). Default 'hazard_min'.
+- `avoid_flood`: true if the user explicitly wants to avoid floods / low-lying / coastal inundation.
+- `avoid_tornado`: true if the user explicitly wants to avoid tornadoes / severe storms."""
+
+
+async def parse_best_site_query(
+    *,
+    query: str,
+    model: str = DEFAULT_BRIEFING_MODEL,
+    api_key: str | None = None,
+) -> BestSiteQuery:
+    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+    system = [{"type": "text", "text": _BESTSITE_SYSTEM, "cache_control": {"type": "ephemeral"}}]
+    try:
+        async with anthropic.AsyncAnthropic(api_key=key) as client:
+            resp = await client.messages.parse(
+                model=model,
+                max_tokens=512,
+                system=system,
+                messages=[{"role": "user", "content": query}],
+                output_format=BestSiteQuery,
+            )
+    except anthropic.APIError as exc:
+        raise BriefingUnavailable(f"Anthropic API error: {exc}") from exc
+    if resp.parsed_output is None:
+        raise BriefingUnavailable("model returned no structured output")
+    return resp.parsed_output
+
+
+# --- "why did this site win the region": explanation grounded in the computed scores ----------
+
+
+class BestSiteExplanation(BaseModel):
+    headline: str
+    why_here: str            # plain-language: why the winning cell beat the alternatives in this region
+    caveats: list[str]
+    confidence: Literal["low", "medium", "high"]
+
+
+_WHY_HERE_SYSTEM = """You are a siting analyst for Borealis. You are GIVEN the precomputed scores for the WINNING \
+site and the runner-up candidates from a region search, plus the optimization objective. Explain, in plain \
+language, WHY the winning location was chosen WITHIN this region and how it compares to the alternatives.
+
+HARD RULES:
+- NEVER invent, alter, or recompute any number. Cite only values you are given.
+- This is a RELATIVE comparator over long-term CLIMATOLOGY (NASA POWER / ERA5) + hazard climatology (terrain \
+elevation for flood, NOAA SPC for tornado) — it is "best within this region by the stated criteria, from \
+available data", NOT a bankable siting recommendation (no grid connection, land ownership, permitting, or cost). \
+Say this plainly.
+- caveats MUST include the relative-comparator + not-bankable point and recommend a real site assessment.
+- Be concise (2-4 sentences of `why_here`); pick confidence from how clearly the winner separates from the field."""
+
+
+async def generate_best_site_explanation(
+    *,
+    objective: str,
+    region_label: str,
+    best: dict[str, Any],
+    candidates: list[dict[str, Any]],
+    model: str = DEFAULT_BRIEFING_MODEL,
+    api_key: str | None = None,
+) -> BestSiteExplanation:
+    import json
+
+    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    if not key:
+        raise BriefingUnavailable("ANTHROPIC_API_KEY not configured")
+    system = [{"type": "text", "text": _WHY_HERE_SYSTEM, "cache_control": {"type": "ephemeral"}}]
+    user = (
+        f"Region: {region_label}\nObjective: {objective}\n"
+        f"Winning site: {json.dumps(best, default=str)}\n"
+        f"Runner-up candidates: {json.dumps(candidates, default=str)}\n"
+        "Explain why the winning site was chosen within this region vs the alternatives."
+    )
+    try:
+        async with anthropic.AsyncAnthropic(api_key=key) as client:
+            resp = await client.messages.parse(
+                model=model,
+                max_tokens=1024,
+                system=system,
+                messages=[{"role": "user", "content": user}],
+                output_format=BestSiteExplanation,
             )
     except anthropic.APIError as exc:
         raise BriefingUnavailable(f"Anthropic API error: {exc}") from exc

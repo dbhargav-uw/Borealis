@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
-import type { Analysis, ResourceLens } from './lib/api'
+import type { Analysis, BestSiteExplanation, ResourceLens } from './lib/api'
 
 // The per-location RISK ANALYSIS dossier (left panel). Opens on building placement, closes on reset.
 // Presentational only: App owns the single /api/analysis fetch and passes the state in. Every section
@@ -56,10 +56,12 @@ function Section({ icon, title, children }: { icon: string; title: string; child
 export function AnalysisDossier({
   placement,
   state,
+  whyHere,
   onClose,
 }: {
   placement: Placement
   state: AnalysisState
+  whyHere?: BestSiteExplanation | null
   onClose: () => void
 }): ReactElement {
   const data = state.kind === 'ok' ? state.data : null
@@ -72,6 +74,18 @@ export function AnalysisDossier({
           close
         </button>
       </div>
+
+      {/* "why here" — only for a find-best region search; explains why this site won within the region */}
+      {whyHere && (
+        <section className="dossier-section" style={{ marginTop: 6, borderTop: 'none', paddingTop: 0 }}>
+          <h3 className="dossier-h">🏆 Best in region</h3>
+          <p className="dossier-read"><strong>{whyHere.headline}</strong></p>
+          <p className="dossier-read">{whyHere.whyHere}</p>
+          <p className="dossier-fine">
+            Relative comparator within the region — not a bankable siting recommendation.
+          </p>
+        </section>
+      )}
 
       {state.kind === 'loading' && <p className="dossier-loading">Composing the location dossier…</p>}
       {state.kind === 'error' && <p className="dossier-loading">Analysis unavailable: {state.message}</p>}

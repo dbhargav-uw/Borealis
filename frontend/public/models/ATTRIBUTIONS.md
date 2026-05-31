@@ -15,6 +15,8 @@ it is recorded here for provenance.
 | `residential_tower.glb` | residential tower / apartments (Quaternius "Flat") | Buildings pack — OpenGameArt | Quaternius | CC0 1.0 |
 | `mid_rise.glb` | generic mid-rise / **default fallback** (Quaternius "Shop") | Buildings pack — OpenGameArt | Quaternius | CC0 1.0 |
 | `warehouse.glb` | warehouse / factory / data center | [Warehouse building, low poly — OpenGameArt](https://opengameart.org/content/warehouse-building-low-poly) | 32kda | CC0 1.0 |
+| `solar_panel.glb` | solar farm (one flat PV panel, tiled into a tilted array) | [Solar Panel — OpenGameArt](https://opengameart.org/content/solar-panel) | Jummit | CC-BY 4.0 |
+| `turbine.glb` | wind farm (3-blade HAWT; `rotor` node spins) | generated procedurally by `frontend/scripts/build_turbine.mjs` | Borealis | CC0 / original |
 
 The Quaternius "Buildings pack" is distributed CC0 via OpenGameArt
 (https://opengameart.org/content/lowpoly-buildings); the OBJ meshes were converted to

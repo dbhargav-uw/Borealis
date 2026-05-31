@@ -31,6 +31,7 @@ class PlaceRequest(BaseModel):
 
 
 class PlaceResponse(BaseModel):
+    mode: str = "place"  # 'place' | 'find-best' — frontend routes find-best to /api/best-site
     label: str
     place_name: str
     building_type: str
@@ -61,7 +62,7 @@ async def place(req: PlaceRequest) -> PlaceResponse:
             status_code=502, detail={"error": f"Query parsing failed: {exc}", "code": "place_failed"}
         )
     return PlaceResponse(
-        label=q.label, place_name=q.place_name, building_type=q.building_type, intent=q.intent,
+        mode=q.mode, label=q.label, place_name=q.place_name, building_type=q.building_type, intent=q.intent,
         approx_floors=q.approx_floors, height_m=q.height_m, footprint_m=q.footprint_m,
         style=q.style, roof_type=q.roof_type, features=q.features,
     )

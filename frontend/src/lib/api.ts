@@ -299,7 +299,10 @@ export interface BuildingSpecMeta {
   features: string[]
 }
 
+export type PlaceMode = 'place' | 'find-best'
+
 export interface PlaceResult extends BuildingSpecMeta {
+  mode: PlaceMode
   label: string
   placeName: string
   buildingType: string
@@ -307,6 +310,7 @@ export interface PlaceResult extends BuildingSpecMeta {
 }
 
 const placeSchema = z.object({
+  mode: z.enum(['place', 'find-best']).optional(),
   label: z.string(),
   place_name: z.string(),
   building_type: z.string(),
@@ -337,6 +341,7 @@ export async function fetchPlace(query: string): Promise<PlaceResult> {
   }
   const p = placeSchema.parse(await res.json())
   return {
+    mode: p.mode ?? 'place',
     label: p.label,
     placeName: p.place_name,
     buildingType: p.building_type,
@@ -347,6 +352,98 @@ export async function fetchPlace(query: string): Promise<PlaceResult> {
     style: p.style ?? null,
     roofType: p.roof_type ?? null,
     features: p.features ?? [],
+  }
+}
+
+// --- "find the best site in a region, then build there" -----------------------------------
+
+export interface BestSiteScore {
+  lat: number
+  lng: number
+  score: number // final objective-weighted score (0..1, with hazard penalties)
+  suitability: number // relative climate suitability (0..1) within the region
+  metrics: Record<string, number>
+}
+export interface BestSiteExplanation {
+  headline: string
+  whyHere: string
+  caveats: string[]
+  confidence: 'low' | 'medium' | 'high'
+}
+export interface BestSiteResult {
+  bestSite: BestSiteScore | null
+  topCandidates: BestSiteScore[]
+  regionBbox: Region
+  regionLabel: string
+  buildingType: string
+  objective: string
+  metricUnits: string
+  explanation: BestSiteExplanation | null
+  message: string | null
+  disclaimer: string
+}
+
+const siteScoreSchema = z.object({
+  lat: z.number(),
+  lon: z.number(),
+  score: z.number(),
+  suitability: z.number(),
+  metrics: z.record(z.string(), z.number()),
+})
+const bestSiteSchema = z.object({
+  best_site: siteScoreSchema.nullable(),
+  top_candidates: z.array(siteScoreSchema),
+  region_bbox: z.object({ lat_min: z.number(), lon_min: z.number(), lat_max: z.number(), lon_max: z.number() }),
+  region_label: z.string(),
+  building_type: z.string(),
+  objective: z.string(),
+  metric_units: z.string(),
+  explanation: z
+    .object({
+      headline: z.string(),
+      why_here: z.string(),
+      caveats: z.array(z.string()),
+      confidence: z.enum(['low', 'medium', 'high']),
+    })
+    .nullable(),
+  message: z.string().nullable(),
+  disclaimer: z.string(),
+})
+
+function toSiteScore(s: z.infer<typeof siteScoreSchema>): BestSiteScore {
+  return { lat: s.lat, lng: s.lon, score: s.score, suitability: s.suitability, metrics: s.metrics }
+}
+
+export async function fetchBestSite(query: string): Promise<BestSiteResult> {
+  const res = await fetch('/api/best-site', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  })
+  if (!res.ok) {
+    let message = `Site search failed (${res.status})`
+    try {
+      const body: unknown = await res.json()
+      if (body && typeof body === 'object' && 'error' in body) message = String((body as { error: unknown }).error)
+    } catch {
+      /* keep default */
+    }
+    throw new Error(message)
+  }
+  const b = bestSiteSchema.parse(await res.json())
+  return {
+    bestSite: b.best_site ? toSiteScore(b.best_site) : null,
+    topCandidates: b.top_candidates.map(toSiteScore),
+    regionBbox: b.region_bbox,
+    regionLabel: b.region_label,
+    buildingType: b.building_type,
+    objective: b.objective,
+    metricUnits: b.metric_units,
+    explanation: b.explanation
+      ? { headline: b.explanation.headline, whyHere: b.explanation.why_here, caveats: b.explanation.caveats, confidence: b.explanation.confidence }
+      : null,
+    message: b.message,
+    disclaimer: b.disclaimer,
   }
 }
 

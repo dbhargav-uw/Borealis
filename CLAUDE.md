@@ -80,6 +80,13 @@ Energy ships first with TWO lenses (solar, wind) behind one model via params['le
         read (Cesium terrain, sampled client-side + passed in); tornado = REUSED SPC climatology; live = REUSED NHC/NWS feeds;
         insurance[]+summary = Anthropic synthesis, ILLUSTRATIVE/EDUCATIONAL (not advice), invents no numbers, degrades to
         []/null. Cached per location (one call per placement). crop lens only for agri building types (farm/ranch/…).
+- FIND-BEST-SITE (region search → build at the winner; composes suitability + hazard + briefing):
+  - `POST /api/best-site { query }` -> `{ best_site{lat,lon,score,suitability,metrics}, top_candidates[], region_bbox,
+        region_label, building_type, objective, metric_units, explanation, disclaimer }`. Anthropic parse → region bbox +
+        objective (solar/wind/crop/hazard_min, inferred from building type + explicit "avoid floods/tornadoes"); score a
+        coarse grid with the objective's SuitabilityModel (`score_and_rank`) + land mask, blend HAZARD penalties (tornado
+        from SPC `tornado_climatology`, flood from coarse Open-Meteo elevation `resources/elevation.py`); pick the top
+        valid cell + top-N. Relative comparator (NOT bankable). Cached per query.
 
 ResourceCell: `{ lat, lon, values: { <POWER var>: annual_mean } }`
 SuitabilityModel interface: `{ id, name, required_variables, briefing_role,
@@ -149,6 +156,25 @@ premium Bing/World-Terrain earth + the ion geocoder.
       "representative model — not the actual structure" label (dossier Location section). Tornado shake + flood + dossier
       all still consume `{lat,lng,baseHeight}` unchanged. (Text-to-3D generation for unmatched types is a documented
       seam below — deferred, off by default, needs a new secret.)
+- [x] Phase H (find-best-site + wind-always-on): **`POST /api/best-site`** (`backend/api/best_site.py`) — a "find the best
+      place in <region> to build X" query parses to region bbox + objective (`parse_best_site_query`), scores a coarse grid
+      with the objective's SuitabilityModel + land mask, blends tornado (SPC) + flood (Open-Meteo elevation,
+      `resources/elevation.py`) penalties, picks the top valid cell + top-N candidates, and an LLM explains "why here"
+      (`generate_best_site_explanation`). Frontend: `parse_building_query` gains a `mode` (place|find-best) for routing;
+      `fetchBestSite` (`lib/api.ts`); `ResourceGlobe.placeBuildingAt(lat,lng,spec)` builds at the winner (no geocode);
+      candidate markers + a "🏆 Best in region — why here" block in the dossier. Relative comparator, labeled not-bankable;
+      tests `backend/tests/test_best_site.py`. WIND IS NOW ALWAYS ON — the 💨 Wind toggle is removed (`showWind=zoomedOut`,
+      base-dimming likewise); Storms stays toggleable.
+- [x] Phase I (energy infrastructure models): solar/wind placements render INFRASTRUCTURE, not a building.
+      `buildingModels.modelKind(buildingType)` → solar | wind | building; `ResourceGlobe.placeModelAt` branches:
+      SOLAR = a grid of the CC-BY `solar_panel.glb` (OpenGameArt/Jummit) tiled into rows, each tilted toward the equator
+      at ~site latitude; WIND = a cluster of `turbine.glb` (3-blade HAWT authored procedurally by
+      `frontend/scripts/build_turbine.mjs` with a named `rotor` node) whose blades SPIN via `nodeTransformations`
+      (Quaternion about local +Z, reused scratch — no per-frame alloc) and YAW into the live Open-Meteo wind. Both
+      terrain-clamped, PBR + shadows, disposed on reset (multi-entity `infraRef` + a `rotorSpinRef` preRender remover),
+      labeled "representative". Drives off the parsed buildingType so it works for direct placement AND find-best-site
+      (objective solar/wind → "solar farm"/"wind farm"). NOTE: `tsc -b` (the build) is stricter than `tsc --noEmit` —
+      verify with `npm run build`.
 - [ ] Remaining: NHC track/cone (KMZ/shapefile) for storms; Global Wind/Solar Atlas enrichment; NASA-POWER fallback when
       Open-Meteo 429-rate-limits the per-placement analysis grid; **text-to-3D fallback** (Phase D seam) — behind a flag
       (`VITE_ENABLE_TEXT_TO_3D` + a backend Meshy/Tripo/Hunyuan proxy needing a new secret): generate a mesh on demand

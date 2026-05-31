@@ -25,6 +25,20 @@ const MODELS: Record<string, BuildingModelDef> = {
 const DEFAULT_KEY = 'mid_rise'
 const METRES_PER_FLOOR = 3.3
 
+// Energy infrastructure (rendered as an array / cluster, NOT a single building) — see ResourceGlobe.
+export type ModelKind = 'building' | 'solar' | 'wind'
+export const SOLAR_PANEL_URL = '/models/solar_panel.glb' // CC-BY flat 2×2 m PV panel (tiled into a tilted array)
+export const TURBINE_URL = '/models/turbine.glb' // procedural 3-blade HAWT; node "rotor" spins about local +Z
+export const TURBINE_NATIVE_H = 10.2 // tower+hub height in model units (scale = target hub height / this)
+
+// Pick the placement KIND from the parsed building type (solar farm / wind farm → infrastructure).
+export function modelKind(buildingType: string): ModelKind {
+  const s = buildingType.toLowerCase()
+  if (/solar|photovoltaic|\bpv\b|\bpanel/.test(s)) return 'solar'
+  if (/wind|turbine/.test(s)) return 'wind'
+  return 'building'
+}
+
 // Map a free-text parsed building type to a model key (most specific first).
 function typeToKey(buildingType: string): string {
   const s = buildingType.toLowerCase()

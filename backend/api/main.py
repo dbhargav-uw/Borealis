@@ -22,6 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.alerts import router as alerts_router
 from api.analysis import router as analysis_router
+from api.best_site import router as best_site_router
 from api.config import get_settings
 from api.current_wind import router as current_wind_router
 from api.place import router as place_router
@@ -47,6 +48,7 @@ app.include_router(suitability_router)
 app.include_router(seasonal_router)
 app.include_router(place_router)
 app.include_router(analysis_router)
+app.include_router(best_site_router)
 app.include_router(tornado_router)
 app.include_router(storms_router)
 app.include_router(alerts_router)

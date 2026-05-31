@@ -16,6 +16,7 @@ import {
   coarseTornadoFallback,
   fetchAlerts,
   fetchAnalysis,
+  fetchBestSite,
   fetchBriefing,
   fetchCurrentWind,
   fetchFieldMeta,
@@ -30,6 +31,7 @@ import {
   regionCenter,
   type Alert,
   type AlertFeed,
+  type BestSiteExplanation,
   type FieldMeta,
   type GridWind,
   type Storm,
@@ -155,11 +157,13 @@ export function App(): ReactElement {
   const [hazardBrief, setHazardBrief] = useState<HazardBriefState>({ kind: 'idle' })
   // per-location risk-analysis dossier (one /api/analysis call per placement; opens on placement, clears on reset)
   const [analysis, setAnalysis] = useState<AnalysisState>({ kind: 'idle' })
+  // find-best-site: ranked candidate markers + the "why here" explanation (set on a region search)
+  const [bestCandidates, setBestCandidates] = useState<RankedSite[]>([])
+  const [bestExplanation, setBestExplanation] = useState<BestSiteExplanation | null>(null)
   const globeRef = useRef<GlobeHandle>(null)
 
   // LIVE / OBSERVED layers (shown only when zoomed out; OBSERVATIONAL, never the illustrative sim).
-  // Wind streamlines are the hero weather look → ON by default; storms (cyclones + tornado alerts) opt-in.
-  const [windOn, setWindOn] = useState<boolean>(true)
+  // Wind streamlines are the hero weather look → ALWAYS on (no toggle). Storms (cyclones + tornado alerts) opt-in.
   const [stormsOn, setStormsOn] = useState<boolean>(false)
   const [zoomedOut, setZoomedOut] = useState<boolean>(true)
   const [storms, setStorms] = useState<StormsState>({ kind: 'idle' })
@@ -189,12 +193,8 @@ export function App(): ReactElement {
     })()
   }, [])
 
-  // LIVE wind grid — polled every ~12 min while the wind layer is on (default on; cached server-side).
+  // LIVE wind grid — ALWAYS on (the hero weather layer); polled every ~12 min (cached server-side).
   useEffect(() => {
-    if (!windOn) {
-      setWind({ kind: 'idle' })
-      return
-    }
     let cancelled = false
     const load = async (): Promise<void> => {
       try {
@@ -210,7 +210,7 @@ export function App(): ReactElement {
       cancelled = true
       window.clearInterval(id)
     }
-  }, [windOn])
+  }, [])
 
   // LIVE storm + tornado-alert feeds — polled every ~12 min while the storms layer is toggled on (opt-in).
   useEffect(() => {
@@ -278,9 +278,9 @@ export function App(): ReactElement {
     [data, contextLens],
   )
   const focus = region ? regionCenter(region) : GLOBAL_FOCUS
-  // LIVE layers render only when zoomed out (the global view) — never on a placed building. Wind + storms
-  // gate independently now (wind default on, storms opt-in).
-  const showWind = windOn && zoomedOut
+  // LIVE layers render only when zoomed out (the global view) — never on a placed building. Wind is always on;
+  // storms are opt-in.
+  const showWind = zoomedOut
   const showStorms = stormsOn && zoomedOut
   const liveAsOf =
     storms.kind === 'ok' ? storms.feed.asOf : alerts.kind === 'ok' ? alerts.feed.asOf : null
@@ -324,8 +324,25 @@ export function App(): ReactElement {
     setVariab({ kind: 'idle' })
     globeRef.current?.flyTo(site.lat, site.lng)
   }
+  // One aggregation call per placement -> the left-side risk-analysis dossier (additive; never blocks).
+  const openAnalysis = (
+    lat: number, lng: number, buildingType: string, intent: Intent, placeName: string, elevationM: number,
+  ): void => {
+    setAnalysis({ kind: 'loading' })
+    void (async (): Promise<void> => {
+      try {
+        const a = await fetchAnalysis({ lat, lng, buildingType, intent, placeName, elevationM })
+        setAnalysis({ kind: 'ok', data: a })
+      } catch (err) {
+        logger.warn('analysis dossier unavailable', err)
+        setAnalysis({ kind: 'error', message: err instanceof Error ? err.message : 'Analysis failed' })
+      }
+    })()
+  }
   // The query bar places a building: parse (Anthropic) -> geocode (ion) -> terrain-clamped building ->
   // oblique fly-to -> surface the contextual layer for the intent (suitability lens, or a hazard view).
+  // A "find the best place in <region> to build X" query instead searches the region (/api/best-site)
+  // and builds at the winner.
   const onPlace = (e: FormEvent): void => {
     e.preventDefault()
     if (!query.trim() || asking) return
@@ -341,10 +358,44 @@ export function App(): ReactElement {
         } catch (parseErr) {
           logger.warn('place parse unavailable; geocoding raw query', parseErr)
           p = {
-            label: query.trim(), placeName: query.trim(), buildingType: 'building', intent: 'general',
+            mode: 'place', label: query.trim(), placeName: query.trim(), buildingType: 'building', intent: 'general',
             approxFloors: null, heightM: null, footprintM: null, style: null, roofType: null, features: [],
           }
         }
+
+        // FIND-BEST: search the region for the optimal site, then build at the winner.
+        if (p.mode === 'find-best') {
+          const best = await fetchBestSite(query.trim())
+          if (!best.bestSite) {
+            setAskError(best.message ?? `No suitable site found in ${best.regionLabel || 'that region'}.`)
+            return
+          }
+          const site = best.bestSite
+          const coords = await globeRef.current?.placeBuildingAt(site.lat, site.lng, {
+            placeName: best.regionLabel, buildingType: best.buildingType, label: best.buildingType,
+            approxFloors: null, heightM: null, footprintM: null,
+          })
+          if (!coords) {
+            setAskError('Couldn’t place the building at the chosen site.')
+            return
+          }
+          setFloodLevel(null)
+          setTornado({ kind: 'idle' })
+          setContextLens(null)
+          setRegion(null)
+          setBestCandidates(
+            best.topCandidates.map((c, i) => ({ rank: i + 1, lat: c.lat, lng: c.lng, score: c.score, metrics: c.metrics, caveats: [] })),
+          )
+          setBestExplanation(best.explanation)
+          setPlacement({
+            label: `${best.buildingType} · best in ${best.regionLabel}`,
+            buildingType: best.buildingType, intent: 'general',
+            lat: coords.lat, lng: coords.lng, baseHeight: coords.baseHeight,
+          })
+          openAnalysis(coords.lat, coords.lng, best.buildingType, 'general', best.regionLabel, coords.baseHeight)
+          return
+        }
+
         const coords = await globeRef.current?.placeBuilding({
           placeName: p.placeName,
           buildingType: p.buildingType,
@@ -359,6 +410,8 @@ export function App(): ReactElement {
         }
         setFloodLevel(null)
         setTornado({ kind: 'idle' })
+        setBestCandidates([])
+        setBestExplanation(null)
         setPlacement({
           label: p.label,
           buildingType: p.buildingType,
@@ -367,24 +420,7 @@ export function App(): ReactElement {
           lng: coords.lng,
           baseHeight: coords.baseHeight,
         })
-        // One aggregation call per placement -> the left-side risk-analysis dossier (additive; never blocks).
-        setAnalysis({ kind: 'loading' })
-        void (async (): Promise<void> => {
-          try {
-            const a = await fetchAnalysis({
-              lat: coords.lat,
-              lng: coords.lng,
-              buildingType: p.buildingType,
-              intent: p.intent,
-              placeName: p.placeName,
-              elevationM: coords.baseHeight,
-            })
-            setAnalysis({ kind: 'ok', data: a })
-          } catch (analysisErr) {
-            logger.warn('analysis dossier unavailable', analysisErr)
-            setAnalysis({ kind: 'error', message: analysisErr instanceof Error ? analysisErr.message : 'Analysis failed' })
-          }
-        })()
+        openAnalysis(coords.lat, coords.lng, p.buildingType, p.intent, p.placeName, coords.baseHeight)
         if (p.intent === 'site-selection') {
           setRegionLabel(p.label)
           setContextLens('solar')
@@ -407,6 +443,8 @@ export function App(): ReactElement {
     if (from) globeRef.current?.flyTo(from.lat, from.lng, 22_000_000)
     setPlacement(null)
     setAnalysis({ kind: 'idle' })
+    setBestCandidates([])
+    setBestExplanation(null)
     setFloodLevel(null)
     setFloodStats(null)
     setTornado({ kind: 'idle' })
@@ -524,7 +562,7 @@ export function App(): ReactElement {
           <Suspense fallback={<div className="globe-loading"><span>Spinning up the globe…</span></div>}>
             <ResourceGlobe
               ref={globeRef}
-              sites={sites}
+              sites={bestCandidates.length > 0 ? bestCandidates : sites}
               layerId={fieldId}
               accent={accent}
               focus={focus}
@@ -586,15 +624,7 @@ export function App(): ReactElement {
                 </button>
               ))}
             </div>
-            <div className="lens-toggle storms-toggle" role="group" aria-label="Live weather overlays">
-              <button
-                type="button"
-                className={windOn ? 'lens lens--active lens--live' : 'lens'}
-                onClick={() => setWindOn((v) => !v)}
-                title="Real current wind — animated streamlines (Open-Meteo)"
-              >
-                💨 Wind
-              </button>
+            <div className="lens-toggle storms-toggle" role="group" aria-label="Live storms overlay">
               <button
                 type="button"
                 className={stormsOn ? 'lens lens--active lens--live' : 'lens'}
@@ -633,7 +663,7 @@ export function App(): ReactElement {
       </header>
 
       {placement && analysis.kind !== 'idle' && (
-        <AnalysisDossier placement={placement} state={analysis} onClose={onBackToMap} />
+        <AnalysisDossier placement={placement} state={analysis} whyHere={bestExplanation} onClose={onBackToMap} />
       )}
 
       {placement && placement.intent !== 'site-selection' && (
@@ -846,10 +876,10 @@ export function App(): ReactElement {
         </aside>
       )}
 
-      {(windOn || stormsOn) && (
+      {(zoomedOut || stormsOn) && (
         <div className="hud hud--live-legend">
           <span className="live-badge">● LIVE</span>
-          {windOn && (
+          {zoomedOut && (
             <>
               <span className="ramp ramp--wind" />
               <span className="legend-note">
