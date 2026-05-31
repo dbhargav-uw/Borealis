@@ -3,8 +3,9 @@
 ## What this is
 Borealis is a renewable **site-selection** platform. It runs long-term climatology through
 vertical-specific suitability models to answer "where on Earth should we build solar or wind?" —
-delivering a normalized, location-level suitability heatmap plus ranked candidate sites plus an
-AI-generated "why this site" briefing, all on one interactive 3D globe.
+delivering a continuous global resource field (one fixed-scale equirectangular overlay draped on the
+globe) plus ranked candidate sites plus an AI-generated "why this site" briefing, all on one
+interactive CesiumJS 3D globe.
 
 **Critical framing (do not drift):** Borealis is NOT a weather forecaster and NOT (currently) an
 operational risk tool. The PRODUCT is "where should this asset go", expressed as relative suitability +
@@ -53,12 +54,17 @@ SuitabilityModel interface: `{ id, name, required_variables, briefing_role,
   metric_units(params), score_cell(cell, params) -> SuitabilityScore }`
 
 ## Status (update as you go)
-Current phase: PIVOT complete — P1–P7 shipped (set ANTHROPIC_API_KEY for live AI briefings + NL search)
-- [x] P1–P4: shelve + ResourceProvider/NASA POWER; suitability + /api/suitability; react-globe.gl globe; LLM briefing + NL search
+Current phase: PIVOT complete + Cesium rendering correction shipped (set ANTHROPIC_API_KEY for live AI;
+set VITE_CESIUM_ION_TOKEN in frontend/.env for the premium Bing/World-Terrain earth)
+- [x] P1–P4: shelve + ResourceProvider/NASA POWER; suitability + /api/suitability; globe; LLM briefing + NL search
 - [x] P5: land/water mask constraint + AOI tiler (regions larger than POWER's 10°/axis cap)
 - [x] P6: agriculture suitability vertical (cropland lens) — proves the platform principle (3 lenses, one spine)
 - [x] P7: re-activated the operational Act 2 — pick a site -> its near-term P10/P50/P90 generation fan
-- [ ] Remaining seam: Global Wind/Solar Atlas GeoTIFF enrichment (bankable PVOUT / hub-height CF); extra constraints (protected areas, slope)
+- [x] P8: **Cesium/resium globe** replaces react-globe.gl — the resource field is now ONE continuous global
+      equirectangular texture (inferno solar / viridis wind, fixed absolute scale + legend), baked from POWER
+      by `scripts/bake_field_textures.py`; + `GET /api/seasonal` (per-site monthly profile)
+- [ ] Remaining seam: Global Wind/Solar Atlas GeoTIFF enrichment (bankable PVOUT / hub-height CF); extra
+      constraints (protected areas, slope); optional GPU wind-particle layer over the field
 
 ## Working philosophy in this repo
 - MVP first. Always keep the app runnable. Build and verify ONE layer at a time.
@@ -74,11 +80,13 @@ Current phase: PIVOT complete — P1–P7 shipped (set ANTHROPIC_API_KEY for liv
                  (solar.py + wind.py SHARED physics; suitability.py = EnergySuitabilityModel)
   scoring/     GENERIC normalize + MCDA + rank over SuitabilityScores
   briefing/    GENERIC "why this site" briefing (Anthropic structured output) — P4
+  field/       Resource-field texture renderer: colormaps (inferno/viridis) + render_field_png
+                 (ResourceGrid -> smooth global equirectangular RGBA PNG on a fixed absolute scale)
   registry.py  vertical id -> SuitabilityModel (+ a parallel impact registry for Act 2)
-  api/         FastAPI: /health, POST /api/suitability (entry: api/main.py -> app)
+  api/         FastAPI: /health, POST /api/suitability, GET /api/seasonal (entry: api/main.py -> app)
   operational/ DEFERRED SECOND ACT (forecast/, energy MW fan, risk, /api/operational/assess)
-  tests/  scripts/
-/frontend      Vite + React + TS; react-globe.gl globe (P3)
+  tests/  scripts/  (scripts/bake_field_textures.py bakes the global field PNGs -> frontend/public/fields/)
+/frontend      Vite + React + TS; CesiumJS globe via resium (P8) — see src/ResourceGlobe.tsx
 ```
 
 ## Stack
@@ -89,28 +97,42 @@ Current phase: PIVOT complete — P1–P7 shipped (set ANTHROPIC_API_KEY for liv
   wind power density.
 - LLM: Anthropic Python SDK, structured output, claude-sonnet-4-6, for the "why this site" briefing +
   NL search (verify the current model id at docs.claude.com).
-- Frontend: Vite + React + TypeScript (strict); react-globe.gl (Three.js) — heatmap layer for the
-  suitability field, points/rings/labels for ranked sites, pointOfView fly-to, atmosphere. (This repo is
-  React+Vite, NOT Next.js/Supabase/Stripe — the global App-Router rules do not apply here.)
+- Field textures: Pillow + numpy/scipy bake the climatology grid into a smooth global equirectangular
+  PNG per lens (multi-stop inferno/viridis colormap, fixed absolute scale) — the DISPLAYED field.
+- Frontend: Vite + React + TypeScript (strict); **CesiumJS via resium** (Three-free, WebGL globe) — the
+  resource field is one continuous translucent `SingleTileImageryProvider` overlay (NOT scattered points),
+  glowing `Entity` markers + labels for ranked sites, `camera.flyTo`, atmosphere/fog. Vivid earth via a
+  Cesium ion token (Bing World Imagery + World Terrain), graceful offline Natural Earth II fallback without
+  one. Cesium is lazy-loaded; `vite-plugin-cesium` wires CESIUM_BASE_URL/assets. (This repo is React+Vite,
+  NOT Next.js/Supabase/Stripe — the global App-Router rules do not apply here.)
 - Deploy (LATER, not now): backend on Modal/Fly, frontend on Vercel.
 
 ## Commands
 - Backend dev: `cd backend && uv run uvicorn api.main:app --reload`
 - Backend tests: `cd backend && uv run pytest`
 - Live spine smoke: `cd backend && uv run python scripts/smoke_suitability.py` (or smoke_resource.py)
-- Frontend dev (P3): `cd frontend && npm run dev`
-- Env: copy `.env.example` to `.env` (NASA POWER needs no key; set ANTHROPIC_API_KEY for P4).
+- Bake the global field textures: `cd backend && uv run python scripts/bake_field_textures.py`
+  (per-tile cached/resumable in backend/.cache/; `--bbox lat_min,lon_min,lat_max,lon_max` to scope down)
+- Frontend dev: `cd frontend && npm run dev`
+- Env: copy `.env.example` to `.env` (NASA POWER needs no key; set ANTHROPIC_API_KEY for AI). For the
+  premium earth, put `VITE_CESIUM_ION_TOKEN=` in `frontend/.env` (free tier; offline fallback without it).
 
 ## Domain notes and gotchas
 - Keep `scoring/` and `briefing/` GENERIC — numbers + vertical metadata only. ALL lens-specific logic
   lives in `verticals/energy/`.
 - **NASA POWER**: regional climatology is ONE parameter per call (fan out + nearest-neighbour join across
   POWER's differing native grids — radiation ~1° vs MERRA-2 ~0.5°×0.625°); drop -999; bbox span 2–10°/axis.
-- **Suitability** is min-max normalized across the queried region (RELATIVE); carry the raw physical metric
-  too. Never overclaim climatology as bankable yield.
-- **react-globe.gl**: `heatmapsData` is an ARRAY OF DATASETS (`[cells]`); set explicit width/height (default
-  = full window); backend `lat`/`lon` -> globe `lat`/`lng`; send both solar+wind scores per cell for an
-  instant offline lens toggle.
+- **Suitability** is min-max normalized across the queried region (RELATIVE) and drives the ranked sites;
+  the DISPLAYED field is the RAW physical metric on a FIXED absolute scale (consistent globally) — two
+  expressions of the same POWER climatology. Carry both; never overclaim climatology as bankable yield.
+- **Field bake**: infer the lattice resolution from the data's native spacing (POWER lat 0.5° vs lon 0.625°,
+  radiation ~2° after coarsening) — rasterising onto a finer lattice leaves no-data holes that make the
+  texture's ALPHA dotted. POWER rate-limits (429) under fan-out, so the bake backs off + caches per tile.
+- **Cesium/resium**: build imagery/terrain providers OUTSIDE render (or memoize) — resium recreates an
+  `<ImageryLayer>` whenever its `imageryProvider` prop changes (intended on lens swap, keyed). Field overlay
+  = `SingleTileImageryProvider.fromUrl(/fields/<lens>.png, { rectangle: Rectangle.MAX_VALUE })` at alpha ~0.66.
+  Cap `resolutionScale` at 2; lazy-load the globe; pause auto-rotate on interaction + during flyTo. Globe
+  lighting is OFF so the field reads consistently everywhere (flip on for the day/night terminator look).
 
 ## DEFERRED SECOND ACT (shelved, not scrapped)
 `backend/operational/` holds the original operational path: Open-Meteo ForecastProvider -> EnergyModel
@@ -120,6 +142,6 @@ and mounted, to be revived later. `verticals/energy/solar.py` and `wind.py` are 
 
 ## Out of scope (future seams — DO NOT build yet)
 - Global Wind/Solar Atlas GeoTIFF sampling (rasterio) behind the same ResourceProvider.
-- Constraint layers beyond the first (land/water mask is next; then protected areas, slope, grid distance).
+- Constraint layers beyond the land/water mask (shipped): protected areas, slope, grid distance.
 - AOI tiler for bounding boxes larger than POWER's 10°/axis regional cap.
 - Full per-cell pvlib hourly solar simulation; ERA5 backtesting; auth/multi-tenant.

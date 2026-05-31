@@ -10,9 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "cesium": "^1.141.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-globe.gl": "^2.38.0",
+    "resium": "^1.22.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -27,6 +28,7 @@
     "globals": "^17.6.0",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vite-plugin-cesium": "^1.2.23"
   }
 }

@@ -1,22 +1,39 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactElement } from 'react'
-import { SuitabilityGlobe, type GlobeHandle } from './SuitabilityGlobe'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactElement,
+} from 'react'
+import type { GlobeHandle } from './ResourceGlobe'
+import { ErrorBoundary } from './ErrorBoundary'
 import {
   fetchAsk,
   fetchBriefing,
+  fetchFieldMeta,
+  fetchSeasonal,
   fetchSuitability,
   fetchVariability,
   LAYERS,
   regionCenter,
+  type FieldMeta,
   type LayerDef,
   type RankedSite,
   type Region,
+  type Seasonal,
   type SiteBriefing,
   type SuitabilityData,
   type Variability,
 } from './lib/api'
 import { FanChart } from './FanChart'
+import { SeasonalChart } from './SeasonalChart'
 import { logger } from './lib/logger'
 import './App.css'
+
+const ResourceGlobe = lazy(() => import('./ResourceGlobe').then((m) => ({ default: m.ResourceGlobe })))
 
 const DEFAULT_REGION: Region = { lat_min: 36, lon_min: -10, lat_max: 44, lon_max: 0 }
 const DEFAULT_LABEL = 'Iberian Peninsula'
@@ -40,30 +57,37 @@ type VarState =
   | { kind: 'ok'; data: Variability }
   | { kind: 'error'; message: string }
 
-function useWindowSize(): { width: number; height: number } {
-  const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight })
-  useEffect(() => {
-    const onResize = (): void => setSize({ width: window.innerWidth, height: window.innerHeight })
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
-  return size
-}
+type SeasonState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'ok'; data: Seasonal }
+  | { kind: 'error'; message: string }
 
 export function App(): ReactElement {
   const [region, setRegion] = useState<Region>(DEFAULT_REGION)
   const [regionLabel, setRegionLabel] = useState<string>(DEFAULT_LABEL)
   const [state, setState] = useState<State>({ kind: 'loading' })
+  const [fieldMeta, setFieldMeta] = useState<Record<string, FieldMeta>>({})
   const [activeLayer, setActiveLayer] = useState<string>('solar')
   const [selected, setSelected] = useState<RankedSite | null>(null)
   const [brief, setBrief] = useState<BriefState>({ kind: 'idle' })
   const [variab, setVariab] = useState<VarState>({ kind: 'idle' })
+  const [season, setSeason] = useState<SeasonState>({ kind: 'idle' })
   const [query, setQuery] = useState<string>('')
   const [asking, setAsking] = useState<boolean>(false)
   const [askError, setAskError] = useState<string | null>(null)
   const [landOnly, setLandOnly] = useState<boolean>(true)
   const globeRef = useRef<GlobeHandle>(null)
-  const { width, height } = useWindowSize()
+
+  useEffect(() => {
+    void (async (): Promise<void> => {
+      try {
+        setFieldMeta(await fetchFieldMeta())
+      } catch (err) {
+        logger.error('field meta fetch failed', err)
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -98,6 +122,28 @@ export function App(): ReactElement {
     setVariab({ kind: 'idle' })
   }, [activeLayer, region])
 
+  // seasonal profile for the selected site (depends on the lens's variable)
+  useEffect(() => {
+    if (!selected) {
+      setSeason({ kind: 'idle' })
+      return
+    }
+    let cancelled = false
+    const site = selected
+    setSeason({ kind: 'loading' })
+    void (async (): Promise<void> => {
+      try {
+        const d = await fetchSeasonal(site.lat, site.lng, layer.seasonalVar)
+        if (!cancelled) setSeason({ kind: 'ok', data: d })
+      } catch (err) {
+        if (!cancelled) setSeason({ kind: 'error', message: err instanceof Error ? err.message : 'Seasonal failed' })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [selected, layer.seasonalVar])
+
   if (state.kind === 'loading') {
     return (
       <main className="screen">
@@ -122,6 +168,7 @@ export function App(): ReactElement {
   }
 
   const unit = state.data.units[activeLayer] ?? ''
+  const meta = fieldMeta[activeLayer]
   const onPick = (site: RankedSite): void => {
     setSelected(site)
     setVariab({ kind: 'idle' })
@@ -173,17 +220,25 @@ export function App(): ReactElement {
   return (
     <main className="screen">
       <div className="globe-wrap">
-        <SuitabilityGlobe
-          ref={globeRef}
-          cells={state.data.cells}
-          sites={sites}
-          layerId={activeLayer}
-          accent={accent}
-          width={width}
-          height={height}
-          focus={regionCenter(state.data.region)}
-          onSiteClick={onPick}
-        />
+        <ErrorBoundary
+          fallback={
+            <div className="globe-loading">
+              <span>Globe failed to load — hard-reload (⌘⇧R). If it persists, restart Vite after <code>rm -rf node_modules/.vite</code>.</span>
+            </div>
+          }
+        >
+          <Suspense fallback={<div className="globe-loading"><span>Spinning up the globe…</span></div>}>
+            <ResourceGlobe
+              ref={globeRef}
+              sites={sites}
+              layerId={activeLayer}
+              accent={accent}
+              focus={regionCenter(state.data.region)}
+              selectedRank={selected?.rank ?? null}
+              onSiteClick={onPick}
+            />
+          </Suspense>
+        </ErrorBoundary>
       </div>
 
       <header className="hud hud--top">
@@ -293,6 +348,16 @@ export function App(): ReactElement {
               <li key={i}>{c}</li>
             ))}
           </ul>
+          <div className="season">
+            {season.kind === 'loading' && <p className="variab-note">Loading seasonal profile…</p>}
+            {season.kind === 'error' && <p className="variab-note">{season.message}</p>}
+            {season.kind === 'ok' && (
+              <>
+                <SeasonalChart data={season.data} accent={accent} />
+                <p className="variab-note">Seasonal {layer.name} · monthly climatology ({season.data.units})</p>
+              </>
+            )}
+          </div>
           {layer.vertical === 'energy' && (
             <div className="variab">
               {variab.kind === 'idle' && (
@@ -314,10 +379,21 @@ export function App(): ReactElement {
       )}
 
       <footer className="hud hud--legend">
-        <span>low</span>
-        <span className="ramp" style={{ background: `linear-gradient(90deg, #12162866, ${accent})` }} />
-        <span>high</span>
-        <span className="legend-note">relative across region · NASA POWER climatology, not bankable yield</span>
+        {meta ? (
+          <>
+            <span>{meta.vmin}</span>
+            <span className="ramp" style={{ background: `linear-gradient(90deg, ${meta.legend.join(', ')})` }} />
+            <span>{meta.vmax}</span>
+            <span className="legend-note">{meta.label} · {meta.units} · absolute scale · NASA POWER climatology</span>
+          </>
+        ) : (
+          <>
+            <span>low</span>
+            <span className="ramp" style={{ background: `linear-gradient(90deg, #12162866, ${accent})` }} />
+            <span>high</span>
+            <span className="legend-note">relative suitability · NASA POWER climatology, not bankable yield</span>
+          </>
+        )}
       </footer>
     </main>
   )

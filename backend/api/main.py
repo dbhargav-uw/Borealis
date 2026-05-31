@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.config import get_settings
+from api.seasonal import router as seasonal_router
 from api.suitability import router as suitability_router
 from operational.assess import router as operational_router
 
@@ -37,6 +38,7 @@ app.add_middleware(
 )
 
 app.include_router(suitability_router)
+app.include_router(seasonal_router)
 app.include_router(operational_router)
 
 

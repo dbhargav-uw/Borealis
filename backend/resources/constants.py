@@ -5,6 +5,9 @@ from __future__ import annotations
 # Long-term CLIMATOLOGY, regional (bounding-box) endpoint — no API key, global,
 # native ~0.5° grid (MERRA-2), returns monthly + ANNual (ANN) means.
 NASA_POWER_BASE_URL = "https://power.larc.nasa.gov/api/temporal/climatology/regional"
+# Point climatology endpoint (single lat/lon) — returns JAN–DEC + ANN; used for the
+# per-site seasonal profile.
+NASA_POWER_POINT_URL = "https://power.larc.nasa.gov/api/temporal/climatology/point"
 POWER_COMMUNITY = "RE"          # renewable energy community
 POWER_FILL = -999.0             # POWER's no-data fill; cells carrying it are dropped
 

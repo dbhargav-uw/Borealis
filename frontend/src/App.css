@@ -413,3 +413,71 @@
   display: block;
   margin-top: 4px;
 }
+
+/* --- seasonal profile (detail panel) --- */
+.season {
+  margin-top: 10px;
+  border-top: 1px solid #1d2438;
+  padding-top: 8px;
+}
+
+/* --- top-level error boundary fallback (instead of a blank white screen) --- */
+.boundary {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 8vw;
+  background: radial-gradient(ellipse at 50% 40%, #0b1020 0%, #05070f 70%);
+  color: #cfd6e6;
+  z-index: 10;
+}
+.boundary h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.boundary code {
+  font-size: 12px;
+  color: #ff9a9a;
+  word-break: break-word;
+}
+.boundary .hint {
+  font-size: 12px;
+  opacity: 0.7;
+  max-width: 640px;
+}
+.boundary button {
+  margin-top: 4px;
+  background: #1b2440;
+  border: 1px solid #2a3350;
+  color: #cfd6e6;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.boundary button:hover {
+  border-color: #4a557a;
+}
+
+/* --- Cesium globe loading state (while the lazy chunk + imagery resolve) --- */
+.globe-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 40%, #0b1020 0%, #05070f 70%);
+  color: #6f7891;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+}
+
+/* Cesium credit container — keep it but make it subtle against the dark chrome. */
+.cesium-viewer-bottom,
+.cesium-widget-credits {
+  font-size: 10px;
+  opacity: 0.45;
+}

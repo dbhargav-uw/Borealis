@@ -16,12 +16,13 @@ export interface LayerDef {
   accent: string // hex
   metricKey: string
   metricLabel: string
+  seasonalVar: string // NASA POWER param for the per-site seasonal sparkline
 }
 
 export const LAYERS: LayerDef[] = [
-  { id: 'solar', label: '☀ Solar', name: 'solar', vertical: 'energy', params: { lens: 'solar' }, accent: '#ffd140', metricKey: 'specific_yield_kwh_kwp_yr', metricLabel: 'Specific yield' },
-  { id: 'wind', label: '🌀 Wind', name: 'wind', vertical: 'energy', params: { lens: 'wind' }, accent: '#4ed6ff', metricKey: 'wind_power_density_wm2', metricLabel: 'Wind power density' },
-  { id: 'cropland', label: '🌱 Cropland', name: 'cropland', vertical: 'agriculture', params: {}, accent: '#7ce38b', metricKey: 'growing_degree_days', metricLabel: 'Growing-degree-days' },
+  { id: 'solar', label: '☀ Solar', name: 'solar', vertical: 'energy', params: { lens: 'solar' }, accent: '#ffd140', metricKey: 'specific_yield_kwh_kwp_yr', metricLabel: 'Specific yield', seasonalVar: 'ALLSKY_SFC_SW_DWN' },
+  { id: 'wind', label: '🌀 Wind', name: 'wind', vertical: 'energy', params: { lens: 'wind' }, accent: '#4ed6ff', metricKey: 'wind_power_density_wm2', metricLabel: 'Wind power density', seasonalVar: 'WS50M' },
+  { id: 'cropland', label: '🌱 Cropland', name: 'cropland', vertical: 'agriculture', params: {}, accent: '#7ce38b', metricKey: 'growing_degree_days', metricLabel: 'Growing-degree-days', seasonalVar: 'T2M' },
 ]
 
 export interface Region {
@@ -127,6 +128,62 @@ export async function fetchSuitability(region: Region, landOnly = true): Promise
 
 export function regionCenter(r: Region): { lat: number; lng: number } {
   return { lat: (r.lat_min + r.lat_max) / 2, lng: (r.lon_min + r.lon_max) / 2 }
+}
+
+// --- displayed resource field: legend metadata for the baked global textures --------------
+// The field PNGs (frontend/public/fields/<lens>.png) are the RAW physical metric on a fixed
+// absolute scale; meta.json carries the scale + colormap legend stops for each lens.
+
+export interface FieldMeta {
+  id: string
+  label: string
+  units: string
+  vmin: number
+  vmax: number
+  legend: string[] // hex stops, low -> high
+}
+
+const fieldMetaSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  units: z.string(),
+  vmin: z.number(),
+  vmax: z.number(),
+  legend: z.array(z.string()),
+})
+
+const fieldsSchema = z.object({ fields: z.record(z.string(), fieldMetaSchema) })
+
+export async function fetchFieldMeta(): Promise<Record<string, FieldMeta>> {
+  const res = await fetch('/fields/meta.json')
+  if (!res.ok) return {}
+  try {
+    const json: unknown = await res.json()
+    return fieldsSchema.parse(json).fields
+  } catch {
+    return {} // field textures not baked yet -> legend falls back to the relative note
+  }
+}
+
+// --- per-site seasonal climatology profile (detail panel sparkline) -----------------------
+
+export interface Seasonal {
+  variable: string
+  units: string
+  months: number[]
+}
+
+const seasonalSchema = z.object({
+  variable: z.string(),
+  units: z.string(),
+  months: z.array(z.number()),
+})
+
+export async function fetchSeasonal(lat: number, lng: number, variable: string): Promise<Seasonal> {
+  const qs = new URLSearchParams({ lat: String(lat), lon: String(lng), variable })
+  const res = await fetch(`/api/seasonal?${qs.toString()}`)
+  if (!res.ok) throw new Error(`Seasonal request failed (${res.status})`)
+  return seasonalSchema.parse(await res.json())
 }
 
 // --- Act 2: short-term generation variability for a CHOSEN site -------------------------
