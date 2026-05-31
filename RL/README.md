@@ -8,8 +8,8 @@
 - `train_mps.py` — device-aware training (defaults to Apple-Silicon **MPS**,
   falls back to CUDA then CPU) that reuses the model from `actor_critic.py` and
   writes a `.pt` checkpoint with the weights + architecture/config to reload it.
-- `sample.pt` — a sample checkpoint (untrained, CartPole-v1 dims: obs_dim 4,
-  n_actions 2, hidden 128). Load it with `train_mps.load_checkpoint`.
+- `RL_model.pt` — a sample CartPole-v1 checkpoint (dims: obs_dim 4, n_actions 2,
+  hidden 128). Load it with `train_mps.load_checkpoint`.
 
 ## Setup
 ```bash
@@ -33,7 +33,7 @@ python train_mps.py --device cpu                                        # force 
 Reload a checkpoint:
 ```python
 from train_mps import load_checkpoint
-model = load_checkpoint("sample.pt", device="cpu")
+model = load_checkpoint("RL_model.pt", device="cpu")
 ```
 
 Key flags: `--gamma`, `--lr`, `--rollout-len`, `--entropy-coef`,
