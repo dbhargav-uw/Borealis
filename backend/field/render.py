@@ -30,6 +30,10 @@ class FieldSpec:
     vmax: float    # fixed absolute scale max
     cmap: str      # colormap name in field.colormaps
 
+    def __post_init__(self) -> None:
+        if not self.vmin < self.vmax:
+            raise ValueError(f"FieldSpec {self.id!r}: require vmin < vmax (got {self.vmin}, {self.vmax})")
+
 
 # Fixed absolute display ranges so the color scale is consistent everywhere, regardless of the
 # region in view. (GHI ~2.5–8.5 kWh/m²/day spans desert→cloud; WS50M ~0–11 m/s spans calm→class.)
@@ -93,9 +97,11 @@ def _rasterize_global(grid: ResourceGrid, variable: str, base_res: float) -> np.
         v = cell.values.get(variable)
         if v is None:
             continue
-        i = int(round((90.0 - cell.lat) / base_res))  # north (+90) at row 0
-        j = int(round((cell.lon + 180.0) / base_res))
-        if 0 <= i < n_lat and 0 <= j < n_lon:
+        # north (+90) at row 0; clamp the south pole (lat -90 -> row n_lat) into range.
+        i = min(int(round((90.0 - cell.lat) / base_res)), n_lat - 1)
+        # wrap longitude so lon +180 maps onto the -180 column (no antimeridian seam / dropped cell).
+        j = int(round((cell.lon + 180.0) / base_res)) % n_lon
+        if 0 <= i < n_lat:
             arr[i, j] = v
     return arr
 

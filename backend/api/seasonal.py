@@ -17,6 +17,9 @@ router = APIRouter()
 
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
+# A month at/below POWER's -999 fill is missing data; threshold a hair above it.
+POWER_PRESENT_THRESHOLD = POWER_FILL + 1.0
+
 # Display variables we expose for the seasonal sparkline -> their physical units.
 SEASONAL_UNITS: dict[str, str] = {
     "ALLSKY_SFC_SW_DWN": "kWh/m²/day",
@@ -36,11 +39,11 @@ class SeasonalResponse(BaseModel):
 def _clean(months: list[float]) -> list[float]:
     """Replace POWER's -999 fill (e.g. an offshore point) with the mean of the valid months so
     the sparkline never spikes; if every month is fill, return zeros."""
-    valid = [m for m in months if m > POWER_FILL + 1.0]
+    valid = [m for m in months if m > POWER_PRESENT_THRESHOLD]
     if not valid:
         return [0.0] * len(months)
     fill = sum(valid) / len(valid)
-    return [m if m > POWER_FILL + 1.0 else fill for m in months]
+    return [m if m > POWER_PRESENT_THRESHOLD else fill for m in months]
 
 
 @router.get("/api/seasonal", response_model=SeasonalResponse)

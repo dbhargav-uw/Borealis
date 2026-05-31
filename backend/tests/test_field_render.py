@@ -12,6 +12,7 @@ from PIL import Image
 
 from field import colormaps
 from field.render import FIELD_SPECS, field_meta, render_field_png
+from field.render import _rasterize_global  # noqa: PLC2701 -- testing the orientation/wrap math directly
 from resources.types import ResourceCell, ResourceGrid
 
 
@@ -110,3 +111,30 @@ def test_field_meta_round_trips() -> None:
     assert meta["units"] == "kWh/m²/day"
     assert meta["vmin"] == 2.5 and meta["vmax"] == 8.5
     assert isinstance(meta["legend"], list) and len(meta["legend"]) == 9
+
+
+def test_rasterize_wraps_antimeridian_and_clamps_south_pole() -> None:
+    # lon +180 and lat -90 must NOT be dropped (the seam / pole-cell regression).
+    spec = FIELD_SPECS["wind"]
+    cells = [
+        ResourceCell(lat=0.0, lon=180.0, values={spec.variable: 9.0}),   # antimeridian
+        ResourceCell(lat=-90.0, lon=0.0, values={spec.variable: 9.0}),   # south pole
+    ]
+    arr = _rasterize_global(_grid(cells, [spec.variable], res=2.0), spec.variable, 2.0)
+    n_lat, n_lon = arr.shape
+    assert int(np.isfinite(arr).sum()) == 2                # neither cell dropped
+    assert arr[int(round((90.0 - 0.0) / 2.0)), 0] == 9.0   # lon +180 wraps onto column 0 (= -180)
+    assert arr[n_lat - 1, n_lon // 2] == 9.0               # lat -90 clamped to the last row
+
+
+def test_out_of_range_value_clamps_to_max_color() -> None:
+    spec = FIELD_SPECS["wind"]  # vmax = 11.0
+    cells = [
+        ResourceCell(lat=lat, lon=lon, values={spec.variable: 20.0})  # above vmax -> clamp to hot end
+        for lat in (-2.0, 0.0, 2.0)
+        for lon in (-2.0, 0.0, 2.0)
+    ]
+    img = _decode(render_field_png(_grid(cells, [spec.variable]), spec, out_w=360, out_h=180))
+    hi = colormaps.sample("wind", 1.0)
+    assert img[90, 180, 3] == 255
+    assert abs(int(img[90, 180, 0]) - hi[0]) <= 8 and abs(int(img[90, 180, 2]) - hi[2]) <= 8

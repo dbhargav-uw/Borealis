@@ -193,6 +193,7 @@ export function App(): ReactElement {
     })()
   }
   const onExplain = (): void => {
+    if (brief.kind === 'loading') return // re-entrancy guard: ignore rapid repeat clicks
     setBrief({ kind: 'loading' })
     void (async (): Promise<void> => {
       try {

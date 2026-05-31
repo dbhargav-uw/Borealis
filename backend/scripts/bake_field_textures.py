@@ -67,7 +67,11 @@ async def _tile_cells(
     NASA POWER rate-limits (429) under fan-out, so we back off and retry outside the semaphore."""
     cache = _cache_path(var, t)
     if cache.exists():
-        return [tuple(x) for x in json.loads(cache.read_text())]  # type: ignore[misc]
+        try:
+            data = json.loads(cache.read_text())
+            return [(float(a), float(b), float(c)) for a, b, c in data]
+        except (json.JSONDecodeError, OSError, ValueError, TypeError):
+            print(f"  ~ tile {t} [{var}]: corrupt cache, refetching")  # partial/interrupted write
     delay = 1.5
     for attempt in range(retries + 1):
         try:
@@ -133,7 +137,18 @@ async def main() -> None:
     unknown = [v for v in ids if v not in FIELD_SPECS]
     if unknown:
         ap.error(f"unknown field ids {unknown}; have {sorted(FIELD_SPECS)}")
-    bbox = GLOBAL_BBOX if not args.bbox else tuple(float(x) for x in args.bbox.split(","))  # type: ignore[assignment]
+    bbox: tuple[float, float, float, float] = GLOBAL_BBOX
+    if args.bbox:
+        try:
+            parts = [float(x) for x in args.bbox.split(",")]
+        except ValueError:
+            ap.error("--bbox values must be numbers")
+        if len(parts) != 4:
+            ap.error("--bbox needs 4 comma-separated values: lat_min,lon_min,lat_max,lon_max")
+        lat_min, lon_min, lat_max, lon_max = parts
+        if not (lat_min < lat_max and lon_min < lon_max):
+            ap.error("--bbox requires lat_min < lat_max and lon_min < lon_max")
+        bbox = (lat_min, lon_min, lat_max, lon_max)
     out_dir = Path(args.out)
 
     provider = NASAPowerProvider()

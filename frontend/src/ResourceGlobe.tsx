@@ -31,6 +31,7 @@ import {
 } from 'cesium'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 import type { RankedSite } from './lib/api'
+import { logger } from './lib/logger'
 
 export interface GlobeHandle {
   flyTo: (lat: number, lng: number, altitude?: number) => void
@@ -138,7 +139,10 @@ function GlobeScene({
     const handler = new ScreenSpaceEventHandler(canvas)
     handler.setInputAction((movement: ScreenSpaceEventHandler.PositionedEvent) => {
       const picked = scene.pick(movement.position)
-      const id = defined(picked) && picked && picked.id ? (picked.id as { id?: string }).id : undefined
+      // For an entity pick, Cesium sets picked.id to the Entity, whose own .id is our `site-N`
+      // string. Narrow defensively so it works whether picked.id is the Entity or already a string.
+      const pid: unknown = defined(picked) && picked ? (picked as { id?: unknown }).id : undefined
+      const id = typeof pid === 'string' ? pid : (pid as { id?: string } | null | undefined)?.id
       if (id && id.startsWith('site-')) {
         const rank = Number(id.slice(5))
         const site = sitesRef.current.find((s) => s.rank === rank)
@@ -275,7 +279,8 @@ export const ResourceGlobe = forwardRef<GlobeHandle, Props>(function ResourceGlo
           rectangle: Rectangle.MAX_VALUE,
         })
         if (!cancelled) setField(provider)
-      } catch {
+      } catch (err) {
+        logger.warn('field texture load failed', err)
         if (!cancelled) setField(null)
       }
     })()
