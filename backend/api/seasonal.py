@@ -11,7 +11,9 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from api.config import get_settings
 from resources.constants import NASA_POWER_POINT_URL, POWER_COMMUNITY, POWER_FILL
+from resources.openmeteo import point_monthly_climatology
 
 router = APIRouter()
 
@@ -61,6 +63,20 @@ async def seasonal(
                 "supported": sorted(SEASONAL_UNITS),
             },
         )
+
+    # Prefer the FINE ERA5-Land climatology (matches the high-res grid); fall back to NASA
+    # POWER when the point has no Open-Meteo data (ocean / land-only model) or the call fails.
+    settings = get_settings()
+    om_months = await point_monthly_climatology(
+        lat,
+        lon,
+        variable,
+        archive_url=settings.open_meteo_archive_url,
+        window=(settings.open_meteo_window_start, settings.open_meteo_window_end),
+    )
+    if om_months is not None:
+        return SeasonalResponse(variable=variable, units=SEASONAL_UNITS[variable], months=om_months)
+
     params = {
         "parameters": variable,
         "community": POWER_COMMUNITY,

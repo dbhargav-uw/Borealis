@@ -9,6 +9,7 @@ The "why this site" briefing wires into the `briefing` field in P4.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -24,7 +25,7 @@ from briefing import (
 )
 from constraints import apply_land_mask
 from registry import get_suitability_model, registered_suitability_verticals
-from resources import get_resource_provider
+from resources import select_resource_provider
 from scoring import CellScore, RankedSite, SiteWeights, score_and_rank
 
 router = APIRouter()
@@ -50,13 +51,16 @@ class BBox(BaseModel):
 class SuitabilityRequest(BaseModel):
     vertical: str
     region: BBox
-    resolution: float = Field(0.5, ge=0.5, le=2.0)
+    resolution: float = Field(0.5, ge=0.1, le=2.0)      # >=0.1° (fine via Open-Meteo ERA5-Land)
     params: dict = Field(default_factory=dict)          # e.g. {"lens": "solar"}
     weights: dict[str, float] | None = None             # MCDA metric weights (optional)
     top_n: int = Field(5, ge=1, le=50)
     include_briefing: bool = False                      # generate the "why this site" briefing
     region_label: str | None = None                     # human label for the region (briefing)
     land_only: bool = True                               # drop ocean cells (onshore siting)
+    # Resource source: `auto` routes fine/small queries to Open-Meteo (~0.1°), large/coarse
+    # maps to NASA POWER (~0.5°). Force either explicitly. Omitted -> auto (back-compatible).
+    source: Literal["auto", "nasa_power", "open_meteo"] = "auto"
 
 
 class SuitabilityResponse(BaseModel):
@@ -87,7 +91,14 @@ async def suitability(req: SuitabilityRequest) -> SuitabilityResponse:
 
     # 2. Shared resource INPUT (async). Variables = this model's required_variables.
     settings = get_settings()
-    provider = get_resource_provider(settings.nasa_power_base_url)
+    provider = select_resource_provider(
+        req.source,
+        req.region.as_tuple(),
+        req.resolution,
+        nasa_power_base_url=settings.nasa_power_base_url,
+        open_meteo_archive_url=settings.open_meteo_archive_url,
+        open_meteo_window=(settings.open_meteo_window_start, settings.open_meteo_window_end),
+    )
     try:
         grid = await provider.get_resource_grid(
             req.region.as_tuple(), req.resolution, model.required_variables
@@ -161,7 +172,7 @@ class AskResponse(BaseModel):
 
 
 def _clamp_axis(
-    lo: float, hi: float, bound: float, min_span: float = 2.0, max_span: float = 10.0
+    lo: float, hi: float, bound: float, min_span: float = 0.3, max_span: float = 10.0
 ) -> tuple[float, float]:
     center = (lo + hi) / 2.0
     span = max(min_span, min(max_span, hi - lo))

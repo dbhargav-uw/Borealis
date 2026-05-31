@@ -29,7 +29,7 @@ class _FakeProvider:
 
 @pytest.fixture
 def mock_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(suit_module, "get_resource_provider", lambda base_url=None: _FakeProvider())
+    monkeypatch.setattr(suit_module, "select_resource_provider", lambda *a, **k: _FakeProvider())
 
 
 def test_suitability_solar_ok(mock_provider: None) -> None:
@@ -73,8 +73,29 @@ def test_provider_error_502(monkeypatch: pytest.MonkeyPatch) -> None:
         async def get_resource_grid(self, *a: object, **k: object) -> ResourceGrid:
             raise RuntimeError("POWER down")
 
-    monkeypatch.setattr(suit_module, "get_resource_provider", lambda base_url=None: _Boom())
+    monkeypatch.setattr(suit_module, "select_resource_provider", lambda *a, **k: _Boom())
     resp = client.post("/api/suitability",
                        json={"vertical": "energy", "region": REGION, "params": {"lens": "solar"}})
     assert resp.status_code == 502
     assert resp.json()["code"] == "resource_provider_error"
+
+
+def test_fine_resolution_small_region_ok(mock_provider: None) -> None:
+    """A 0.1° request over a tight box (east of San Jose) is now accepted (floor was 0.5°)."""
+    body = {
+        "vertical": "energy",
+        "region": {"lat_min": 37.2, "lon_min": -121.8, "lat_max": 37.6, "lon_max": -121.4},
+        "resolution": 0.1,
+        "params": {"lens": "solar"},
+        "source": "auto",
+        "top_n": 2,
+    }
+    resp = client.post("/api/suitability", json=body)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["n_cells"] == 2
+
+
+def test_resolution_below_floor_422() -> None:
+    """0.05° is below the new 0.1° floor -> validation error."""
+    body = {"vertical": "energy", "region": REGION, "resolution": 0.05, "params": {"lens": "solar"}}
+    assert client.post("/api/suitability", json=body).status_code == 422

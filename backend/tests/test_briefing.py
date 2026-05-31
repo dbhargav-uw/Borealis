@@ -99,7 +99,7 @@ def test_parse_query_mocked(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_suitability_briefing_null_without_key(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.setattr(suit_module, "get_resource_provider", lambda base_url=None: _FakeProvider())
+    monkeypatch.setattr(suit_module, "select_resource_provider", lambda *a, **k: _FakeProvider())
     body = {"vertical": "energy", "region": REGION, "params": {"lens": "solar"}, "include_briefing": True}
     resp = client.post("/api/suitability", json=body)
     assert resp.status_code == 200, resp.text
@@ -107,7 +107,7 @@ def test_suitability_briefing_null_without_key(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_suitability_briefing_populated(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(suit_module, "get_resource_provider", lambda base_url=None: _FakeProvider())
+    monkeypatch.setattr(suit_module, "select_resource_provider", lambda *a, **k: _FakeProvider())
 
     async def _fake_brief(**_: object) -> SiteBriefing:
         return SAMPLE

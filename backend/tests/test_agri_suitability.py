@@ -46,7 +46,7 @@ class _AgriProvider:
 
 
 def test_agriculture_route(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(suit_module, "get_resource_provider", lambda base_url=None: _AgriProvider())
+    monkeypatch.setattr(suit_module, "select_resource_provider", lambda *a, **k: _AgriProvider())
     body = {
         "vertical": "agriculture",
         "region": {"lat_min": 5, "lon_min": 5, "lat_max": 25, "lon_max": 25},

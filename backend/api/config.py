@@ -32,8 +32,15 @@ class Settings(BaseSettings):
     # Frontend dev origin allowed through CORS.
     frontend_origin: str = "http://localhost:5173"
 
-    # NASA POWER regional climatology endpoint — the site-selection resource provider.
+    # NASA POWER regional climatology endpoint — the COARSE (~0.5°) global resource provider.
     nasa_power_base_url: str = "https://power.larc.nasa.gov/api/temporal/climatology/regional"
+
+    # Open-Meteo ERA5-Land archive endpoint — the FINE (~0.1°) resource provider for
+    # sub-region / high-resolution siting. Distinct from the ensemble URL below.
+    open_meteo_archive_url: str = "https://archive-api.open-meteo.com/v1/archive"
+    # Climatology window for the fine provider (ISO dates; overridable for faster/slower fetches).
+    open_meteo_window_start: str = "2021-01-01"
+    open_meteo_window_end: str = "2023-12-31"
 
     # Open-Meteo ensemble endpoint — DEFERRED operational act (/api/operational/assess).
     # The ensemble API lives on the ensemble-api.* subdomain (api.* 404s).

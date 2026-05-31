@@ -39,6 +39,32 @@ def _make_client(payload: dict):  # type: ignore[no-untyped-def]
     return lambda *a, **k: _FakeClient()
 
 
+@pytest.fixture(autouse=True)
+def default_to_power(monkeypatch: pytest.MonkeyPatch) -> None:
+    """By default force the NASA POWER fallback (Open-Meteo unavailable) so the POWER-path
+    assertions below stay valid; the Open-Meteo-primary path has its own test."""
+
+    async def _none(*a: object, **k: object) -> None:
+        return None
+
+    monkeypatch.setattr(seasonal_mod, "point_monthly_climatology", _none)
+
+
+def test_seasonal_prefers_open_meteo(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When ERA5-Land has data for the point, the fine source is used (no POWER call)."""
+
+    async def _months(*a: object, **k: object) -> list[float]:
+        return [float(i) for i in range(12)]
+
+    monkeypatch.setattr(seasonal_mod, "point_monthly_climatology", _months)
+    # POWER's httpx is wired to explode — proving it is never called on the fine path.
+    monkeypatch.setattr(seasonal_mod.httpx, "AsyncClient", _make_client({"boom": True}))
+
+    body = client.get("/api/seasonal", params={"lat": 37.0, "lon": -5.0, "variable": "T2M"}).json()
+    assert body["variable"] == "T2M" and body["units"] == "°C"
+    assert body["months"] == [float(i) for i in range(12)]
+
+
 def test_seasonal_returns_twelve_months(monkeypatch: pytest.MonkeyPatch) -> None:
     values = {m: 6.0 + i * 0.1 for i, m in enumerate(JAN_DEC)}
     payload = {"properties": {"parameter": {"WS50M": {**values, "ANN": 6.5}}}}
