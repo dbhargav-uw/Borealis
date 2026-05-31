@@ -439,6 +439,22 @@
   margin: 0;
   font-size: 20px;
 }
+
+/* logo + wordmark in the HUD header (carried over from main's branding) */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand h1 {
+  margin: 0;
+}
+.brand__mark {
+  width: 34px;
+  height: 34px;
+  display: block;
+  filter: drop-shadow(0 4px 16px rgba(34, 211, 238, 0.25));
+}
 .boundary code {
   font-size: 12px;
   color: #ff9a9a;

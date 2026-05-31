@@ -1,0 +1,44 @@
+<svg width="720" height="200" viewBox="0 0 720 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Borealis">
+  <defs>
+    <linearGradient id="aurora" x1="40" y1="50" x2="180" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34D399"/>
+      <stop offset="0.4" stop-color="#22D3EE"/>
+      <stop offset="0.72" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="globe" x1="60" y1="80" x2="160" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1E3A5F"/>
+      <stop offset="1" stop-color="#0B1B33"/>
+    </linearGradient>
+    <linearGradient id="word" x1="220" y1="80" x2="700" y2="130" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#E8F1FF"/>
+      <stop offset="1" stop-color="#9FB6D6"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.62">
+      <stop offset="0" stop-color="#22D3EE" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="globeClip">
+      <circle cx="108" cy="112" r="52"/>
+    </clipPath>
+  </defs>
+
+  <!-- mark -->
+  <circle cx="108" cy="104" r="80" fill="url(#glow)"/>
+  <circle cx="108" cy="112" r="52" fill="url(#globe)" stroke="#2D4B73" stroke-width="1.6"/>
+  <g clip-path="url(#globeClip)" stroke="#3E6491" stroke-width="1.6" fill="none" opacity="0.75">
+    <line x1="56" y1="94" x2="160" y2="94"/>
+    <line x1="56" y1="112" x2="160" y2="112"/>
+    <line x1="56" y1="130" x2="160" y2="130"/>
+    <ellipse cx="108" cy="112" rx="18" ry="52"/>
+    <ellipse cx="108" cy="112" rx="37" ry="52"/>
+  </g>
+  <g fill="none" stroke-linecap="round">
+    <path d="M36 66 C 75 27, 141 27, 180 66" stroke="url(#aurora)" stroke-width="11" opacity="0.95"/>
+    <path d="M48 81 C 81 48, 135 48, 168 81" stroke="url(#aurora)" stroke-width="7" opacity="0.8"/>
+    <path d="M62 95 C 86 71, 130 71, 154 95" stroke="url(#aurora)" stroke-width="4" opacity="0.6"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="214" y="130" font-family="'Inter','Helvetica Neue',Arial,sans-serif" font-size="76" font-weight="600" letter-spacing="-1" fill="url(#word)">Borealis</text>
+</svg>

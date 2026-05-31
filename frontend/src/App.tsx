@@ -31,6 +31,7 @@ import {
 import { FanChart } from './FanChart'
 import { SeasonalChart } from './SeasonalChart'
 import { logger } from './lib/logger'
+import borealisMark from './assets/borealis-mark.svg'
 import './App.css'
 
 const ResourceGlobe = lazy(() => import('./ResourceGlobe').then((m) => ({ default: m.ResourceGlobe })))
@@ -243,7 +244,10 @@ export function App(): ReactElement {
       </div>
 
       <header className="hud hud--top">
-        <h1>Borealis</h1>
+        <div className="brand">
+          <img className="brand__mark" src={borealisMark} alt="" aria-hidden width={34} height={34} />
+          <h1>Borealis</h1>
+        </div>
         <p className="tagline">Where on Earth to build — solar, wind &amp; cropland</p>
         <form className="ask" onSubmit={onAsk}>
           <input
