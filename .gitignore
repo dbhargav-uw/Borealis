@@ -4,6 +4,7 @@
 
 # Python / uv
 backend/.venv/
+backend/.cache/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -18,6 +19,7 @@ frontend/*.local
 # Tooling / verification artifacts
 .playwright-mcp/
 phase1-connected.png
+p[0-9]-*.png
 
 # OS / editor
 .DS_Store

@@ -24,15 +24,19 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Anthropic key for the briefing layer (Phase 3). Optional until then.
+    # Anthropic key for the "why this site" briefing + NL search (P4). Optional — the
+    # product works without it (briefing degrades to null).
     anthropic_api_key: str | None = None
+    briefing_model: str = "claude-sonnet-4-6"
 
     # Frontend dev origin allowed through CORS.
     frontend_origin: str = "http://localhost:5173"
 
-    # Open-Meteo ensemble endpoint (Phase 2 forecast provider).
-    # NOTE: the ensemble API lives on the ensemble-api.* subdomain; the api.*
-    # subdomain 404s for /v1/ensemble (verified live).
+    # NASA POWER regional climatology endpoint — the site-selection resource provider.
+    nasa_power_base_url: str = "https://power.larc.nasa.gov/api/temporal/climatology/regional"
+
+    # Open-Meteo ensemble endpoint — DEFERRED operational act (/api/operational/assess).
+    # The ensemble API lives on the ensemble-api.* subdomain (api.* 404s).
     open_meteo_base_url: str = "https://ensemble-api.open-meteo.com/v1/ensemble"
 
 

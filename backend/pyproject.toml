@@ -13,6 +13,9 @@ dependencies = [
     "pandas>=3.0.3",
     "pvlib>=0.11,<0.14",
     "scipy>=1.17.1",
+    "anthropic>=0.105.2",
+    "global-land-mask>=1.0.0",
+    "pillow>=10",
 ]
 
 [dependency-groups]

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from risk import Threshold, assess_risk
+from operational.risk import Threshold, assess_risk
 from verticals.base import ImpactEnsemble
 
 

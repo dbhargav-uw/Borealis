@@ -8,12 +8,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from forecast.types import EnsembleForecast
+from operational.forecast.types import EnsembleForecast
+from operational.params import SolarParams, WindParams, parse_energy_params
 from verticals.base import Asset, ImpactEnsemble, ImpactModel
-
-from .params import SolarParams, WindParams, parse_energy_params
-from .solar import solar_ac_mw_for_member, solar_position
-from .wind import extrapolate_to_hub, wind_power_mw
+from verticals.energy.solar import solar_ac_mw_for_member, solar_position
+from verticals.energy.wind import extrapolate_to_hub, wind_power_mw
 
 _SOLAR_REQUIRED = ("shortwave_radiation", "temperature_2m", "wind_speed_10m")
 

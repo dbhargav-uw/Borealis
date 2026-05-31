@@ -10,8 +10,8 @@ import asyncio
 
 import pytest
 
-import forecast.openmeteo as om
-from forecast.openmeteo import OpenMeteoProvider
+import operational.forecast.openmeteo as om
+from operational.forecast.openmeteo import OpenMeteoProvider
 
 CAPTURED: dict[str, dict] = {}
 

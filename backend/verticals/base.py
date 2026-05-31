@@ -9,11 +9,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
-from forecast.types import EnsembleForecast
+if TYPE_CHECKING:
+    # ImpactModel belongs to the deferred operational act; EnsembleForecast is only a
+    # type hint here (annotations are lazy via `from __future__`), so no runtime coupling.
+    from operational.forecast.types import EnsembleForecast
+    from resources.types import ResourceCell, ResourceGrid
 
 
 class Asset(BaseModel):
@@ -89,5 +93,52 @@ class ImpactModel(ABC):
             id=self.id,
             name=self.name,
             units=self.units,
+            briefing_role=self.briefing_role,
+        )
+
+
+# --- Site selection (the current product) ---------------------------------------------
+
+
+class SuitabilityScore(BaseModel):
+    """One cell's output from a SuitabilityModel: the physical `raw` value plus named
+    `metrics` (the drivers a briefing/UI cites). The 0..1 normalized score is RELATIVE to
+    the queried region and is computed by the generic scoring layer, never here."""
+
+    raw: float
+    metrics: dict[str, float]
+
+
+class SuitabilityModel(ABC):
+    """One per vertical/lens. Maps a ResourceCell (climatology) -> a SuitabilityScore in
+    the lens's physical units. The generic scoring layer normalizes + ranks across the
+    grid. Subclasses set the metadata class attrs and implement metric_units + score_cell.
+    """
+
+    id: str
+    name: str
+    required_variables: list[str]
+    briefing_role: str
+
+    @abstractmethod
+    def metric_units(self, params: dict[str, Any]) -> str:
+        """Physical units of `raw` for these params (lens-dependent), e.g. 'kWh/kWp/yr'."""
+        ...
+
+    @abstractmethod
+    def score_cell(self, cell: ResourceCell, params: dict[str, Any]) -> SuitabilityScore:
+        """Map one resource cell to its physical suitability value + named metrics."""
+        ...
+
+    def score_grid(
+        self, grid: ResourceGrid, params: dict[str, Any]
+    ) -> list[SuitabilityScore]:
+        return [self.score_cell(cell, params) for cell in grid.cells]
+
+    def meta(self) -> VerticalMeta:
+        return VerticalMeta(
+            id=self.id,
+            name=self.name,
+            units="0..1 suitability",
             briefing_role=self.briefing_role,
         )

@@ -11,15 +11,15 @@ import httpx
 from fastapi import APIRouter, HTTPException
 
 from api.config import get_settings
-from api.schemas import AssessRequest, AssessResponse, ForecastSummary, ImpactFan
-from forecast import get_provider
+from operational.forecast import get_provider
+from operational.risk import assess_risk
+from operational.schemas import AssessRequest, AssessResponse, ForecastSummary, ImpactFan
 from registry import get_impact_model, registered_verticals
-from risk import assess_risk
 
 router = APIRouter()
 
 
-@router.post("/api/assess", response_model=AssessResponse)
+@router.post("/api/operational/assess", response_model=AssessResponse)
 async def assess(req: AssessRequest) -> AssessResponse:
     # 1. Resolve the vertical's ImpactModel (unknown -> 404, typed JSON).
     try:

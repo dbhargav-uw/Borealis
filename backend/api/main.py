@@ -1,14 +1,17 @@
 """Borealis API entry point.
 
-/health (Phase 1) + POST /api/assess (Phase 2, the generic spine wired end-to-end).
-Importing this module registers every active vertical's ImpactModel.
+/health + the site-selection routes (POST /api/suitability lands in Phase 2). The
+deferred operational act is mounted under /api/operational/* and registers its
+ImpactModel as an import side-effect.
 """
 
 from __future__ import annotations
 
 import logging
 
-import verticals.energy  # noqa: F401  -- import side-effect registers the 'energy' model
+import operational  # noqa: F401  -- registers the deferred operational EnergyModel (Act 2)
+import verticals.agri  # noqa: F401  -- registers the AgriSuitabilityModel (2nd vertical)
+import verticals.energy  # noqa: F401  -- registers the EnergySuitabilityModel (the product)
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -17,8 +20,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from api.assess import router as assess_router
 from api.config import get_settings
+from api.seasonal import router as seasonal_router
+from api.suitability import router as suitability_router
+from operational.assess import router as operational_router
 
 settings = get_settings()
 
@@ -32,7 +37,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(assess_router)
+app.include_router(suitability_router)
+app.include_router(seasonal_router)
+app.include_router(operational_router)
 
 
 # Typed error bodies: { error, code?, ... } on every failure (project convention).

@@ -1,15 +1,18 @@
-"""Energy vertical: solar PV (pvlib) + wind power-curve behind one 'energy' ImpactModel.
+"""Energy vertical — SHARED physics + the site-selection suitability model.
 
-Importing this package registers the model (import side-effect). api.main imports it at
-startup so 'energy' is available to the registry.
+solar.py (pvlib) and wind.py (numpy power curve) are imported by both the site-selection
+EnergySuitabilityModel and the deferred operational EnergyModel (operational/).
+
+Importing this package registers the EnergySuitabilityModel in the suitability registry
+(import side-effect, mirroring how operational/ registers its ImpactModel).
 """
 
 from __future__ import annotations
 
 import registry
 
-from .model import EnergyModel
+from .suitability import EnergySuitabilityModel
 
-__all__ = ["EnergyModel"]
+__all__ = ["EnergySuitabilityModel"]
 
-registry.register(EnergyModel())
+registry.register_suitability(EnergySuitabilityModel())
