@@ -42,6 +42,7 @@ FIELD_SPECS: dict[str, FieldSpec] = {
         "solar", "ALLSKY_SFC_SW_DWN", "Solar irradiance (GHI)", "kWh/m²/day", 2.5, 8.5, "solar"
     ),
     "wind": FieldSpec("wind", "WS50M", "Wind speed @ 50 m", "m/s", 0.0, 11.0, "wind"),
+    "temp": FieldSpec("temp", "T2M", "Temperature @ 2 m", "°C", -30.0, 45.0, "temp"),
 }
 
 
@@ -88,22 +89,29 @@ def _infer_base_res(grid: ResourceGrid, fallback: float = 1.0) -> float:
 
 
 def _rasterize_global(grid: ResourceGrid, variable: str, base_res: float) -> np.ndarray:
-    """Place scattered climatology cells onto a regular global lat/lon array (north-up),
-    NaN where no cell falls. base_res in degrees."""
+    """Bin scattered climatology cells onto a regular global lat/lon array (north-up), AVERAGING
+    cells that fall in the same bin and leaving NaN where none do. base_res in degrees.
+
+    We FLOOR-bin (not round-to-nearest): adjacent NASA POWER tiles return grids offset by ~0.625°
+    at their boundaries (e.g. the west tile ends at lon 0.0, the east starts at 0.625). Rounding made
+    some lattice columns collide and others gap, and the gap columns got nearest-filled — producing the
+    vertical seams over the prime meridian. Floor-binning + averaging merges the offset grids cleanly."""
     n_lat = int(round(180.0 / base_res))
     n_lon = int(round(360.0 / base_res))
-    arr = np.full((n_lat, n_lon), np.nan, dtype=np.float64)
+    acc = np.zeros((n_lat, n_lon), dtype=np.float64)
+    cnt = np.zeros((n_lat, n_lon), dtype=np.float64)
     for cell in grid.cells:
         v = cell.values.get(variable)
         if v is None:
             continue
         # north (+90) at row 0; clamp the south pole (lat -90 -> row n_lat) into range.
-        i = min(int(round((90.0 - cell.lat) / base_res)), n_lat - 1)
+        i = min(int((90.0 - cell.lat) / base_res), n_lat - 1)
         # wrap longitude so lon +180 maps onto the -180 column (no antimeridian seam / dropped cell).
-        j = int(round((cell.lon + 180.0) / base_res)) % n_lon
+        j = int((cell.lon + 180.0) / base_res) % n_lon
         if 0 <= i < n_lat:
-            arr[i, j] = v
-    return arr
+            acc[i, j] += v
+            cnt[i, j] += 1.0
+    return np.where(cnt > 0, acc / np.maximum(cnt, 1.0), np.nan)
 
 
 def render_field_png(

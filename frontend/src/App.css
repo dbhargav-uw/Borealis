@@ -1,3 +1,17 @@
+/* --- cohesive glassmorphic design tokens (premium dark glass) --- */
+:root {
+  --glass-bg: rgba(12, 16, 26, 0.72);
+  --glass-bg-strong: rgba(10, 13, 22, 0.85);
+  --glass-blur: blur(18px) saturate(140%);
+  --glass-border: 1px solid rgba(125, 145, 185, 0.16);
+  --glass-radius: 15px;
+  --glass-shadow: 0 14px 40px -14px rgba(0, 0, 0, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  --pill-bg: rgba(28, 34, 54, 0.66);
+  --pill-border: 1px solid rgba(125, 145, 185, 0.22);
+  --pill-hover: rgba(150, 170, 210, 0.5);
+  --hairline: rgba(125, 145, 185, 0.14);
+}
+
 .screen {
   position: fixed;
   inset: 0;
@@ -37,21 +51,23 @@
   gap: 8px;
 }
 .lens {
-  background: rgba(20, 24, 40, 0.7);
-  backdrop-filter: blur(8px);
-  border: 1px solid #2a3350;
+  background: var(--pill-bg);
+  backdrop-filter: var(--glass-blur);
+  border: var(--pill-border);
   color: #cfd6e6;
   padding: 8px 16px;
   border-radius: 999px;
   font-size: 14px;
   cursor: pointer;
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.6);
   transition: border-color 0.15s, background 0.15s;
 }
 .lens:hover {
-  border-color: #4a557a;
+  border-color: var(--pill-hover);
 }
 .lens--active {
-  background: rgba(20, 24, 40, 0.96);
+  background: rgba(36, 44, 70, 0.92);
+  border-color: var(--pill-hover);
   font-weight: 600;
 }
 
@@ -60,10 +76,11 @@
   top: 20px;
   right: 24px;
   width: 232px;
-  background: rgba(10, 13, 22, 0.72);
-  backdrop-filter: blur(10px);
-  border: 1px solid #1d2438;
-  border-radius: 14px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
   padding: 14px 14px 8px;
 }
 .hud--sites h2 {
@@ -127,10 +144,11 @@
   bottom: 72px;
   right: 24px;
   width: 284px;
-  background: rgba(10, 13, 22, 0.82);
-  backdrop-filter: blur(10px);
-  border: 1px solid #1d2438;
-  border-radius: 14px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
   padding: 14px;
 }
 .detail-head {
@@ -232,26 +250,34 @@
 }
 .ask input {
   flex: 1;
-  background: rgba(20, 24, 40, 0.7);
-  backdrop-filter: blur(8px);
-  border: 1px solid #2a3350;
+  background: var(--pill-bg);
+  backdrop-filter: var(--glass-blur);
+  border: var(--pill-border);
   color: #e8ecf4;
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 13px;
   outline: none;
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.15s;
 }
 .ask input:focus {
-  border-color: #4a557a;
+  border-color: var(--pill-hover);
 }
 .ask button {
-  background: rgba(20, 24, 40, 0.9);
-  border: 1px solid #2a3350;
+  background: rgba(36, 44, 70, 0.85);
+  backdrop-filter: var(--glass-blur);
+  border: var(--pill-border);
   color: #cfd6e6;
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 13px;
   cursor: pointer;
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.15s;
+}
+.ask button:hover:not(:disabled) {
+  border-color: var(--pill-hover);
 }
 .ask button:disabled {
   opacity: 0.6;
@@ -266,6 +292,150 @@
   margin: 10px 0 0;
   font-size: 12px;
   opacity: 0.55;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: #7fb4ff;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* --- placed-building panel (query-driven placement; hazard controls land here) --- */
+.hud--placement {
+  bottom: 72px;
+  right: 24px;
+  width: 288px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  padding: 14px;
+}
+.place-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.place-head strong {
+  font-size: 14px;
+}
+.place-sub {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+  text-transform: capitalize;
+}
+.place-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  opacity: 0.8;
+  line-height: 1.5;
+}
+.place-hint strong {
+  color: #ffd17a;
+}
+.hazard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.hazard-label {
+  font-size: 12px;
+  opacity: 0.85;
+}
+.hazard-presets {
+  display: inline-flex;
+  gap: 5px;
+}
+.preset {
+  background: rgba(31, 111, 176, 0.18);
+  border: 1px solid #2a4a6a;
+  color: #cfe3f5;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.preset:hover {
+  border-color: #4a78a8;
+}
+.preset--active {
+  background: #1f6fb0;
+  color: #fff;
+  font-weight: 600;
+}
+.preset:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.hazard-brief {
+  margin-top: 8px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 8px;
+}
+
+/* --- flood depth readout --- */
+.flood-readout {
+  margin-top: 10px;
+}
+.flood-metrics {
+  display: flex;
+  gap: 8px;
+}
+.flood-metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: rgba(31, 111, 176, 0.12);
+  border: 1px solid rgba(74, 120, 168, 0.35);
+  border-radius: 10px;
+}
+.flood-metric-val {
+  font-size: 18px;
+  font-weight: 600;
+  color: #9fd0f5;
+  font-variant-numeric: tabular-nums;
+}
+.flood-metric-cap {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  opacity: 0.6;
+}
+.flood-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.flood-legend-cap {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  opacity: 0.6;
+}
+.flood-legend-ramp {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #9fd6f5 0%, #2f88c4 45%, #1f5e94 75%, #0a3358 100%);
+}
+.flood-legend-ends {
+  display: inline-flex;
+  gap: 4px;
+  font-size: 10px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- sites header + explain --- */
@@ -301,10 +471,11 @@
   width: 284px;
   max-height: 33vh;
   overflow-y: auto;
-  background: rgba(10, 13, 22, 0.86);
-  backdrop-filter: blur(12px);
-  border: 1px solid #1d2438;
-  border-radius: 14px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
   padding: 14px;
 }
 .brief-loading,
@@ -372,6 +543,123 @@
 .hud--legend {
   left: auto;
   right: 24px;
+}
+
+/* --- per-location risk-analysis dossier (left panel; opens on placement) --- */
+.hud--dossier {
+  top: 150px;
+  left: 24px;
+  width: 332px;
+  max-height: calc(100vh - 188px);
+  overflow-y: auto;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  padding: 14px;
+}
+.dossier-loading {
+  margin: 8px 0 0;
+  font-size: 13px;
+  opacity: 0.75;
+}
+.dossier-section {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+.dossier-h {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.8;
+}
+.dossier-lens {
+  margin-bottom: 10px;
+}
+.dossier-lens-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.dossier-lens-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.dossier-read {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  opacity: 0.9;
+}
+.dossier-metric {
+  margin: 2px 0 0;
+  font-size: 11px;
+  opacity: 0.6;
+}
+.dossier-fine {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  opacity: 0.62;
+}
+.dossier-src {
+  display: inline-block;
+  opacity: 0.85;
+  font-style: italic;
+}
+.dossier-hazard {
+  margin-bottom: 10px;
+}
+.dossier-hazard-tag {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.92;
+}
+.dossier-illus {
+  color: #ffd140;
+  font-weight: 600;
+}
+.dossier-notadvice {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #ffb060;
+  background: rgba(255, 176, 96, 0.1);
+  border: 1px solid rgba(255, 176, 96, 0.28);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.dossier-insurance {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dossier-insurance li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 9px;
+}
+.dossier-insurance li .chip {
+  align-self: flex-start;
+}
+.dossier-disclaimer {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+  font-size: 10.5px;
+  line-height: 1.45;
+  opacity: 0.55;
+}
+.hud--dossier code {
+  background: #11161f;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
 }
 
 .offshore {
@@ -498,4 +786,102 @@
 .cesium-widget-credits {
   font-size: 10px;
   opacity: 0.45;
+}
+
+/* --- LIVE / OBSERVED storm layer (distinct register from the illustrative sim) --- */
+.storms-toggle {
+  margin-top: 8px;
+}
+.lens--live {
+  border-color: rgba(255, 70, 70, 0.6);
+  box-shadow: 0 0 0 1px rgba(255, 70, 70, 0.25), 0 6px 18px -10px rgba(0, 0, 0, 0.6);
+}
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #ff5b5b;
+  text-transform: uppercase;
+}
+
+/* bottom-center status strip — clear of the bottom-left legend + bottom-right detail clusters */
+.hud--live-legend {
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: 60vw;
+  justify-content: center;
+  padding: 7px 14px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: 999px;
+  box-shadow: var(--glass-shadow);
+  font-size: 12px;
+}
+.ramp--cat {
+  width: 96px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7fd4ff, #66ffd0, #ffe066, #ffac42, #ff6b5e, #ff2d6f);
+}
+/* wind streamline speed ramp (matches windFlow.ts: slow teal → green → yellow → white fast) */
+.ramp--wind {
+  width: 84px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0d3b3a, #2bb673, #ffe34d, #ffffff);
+}
+.sw-warn {
+  color: #ff3b30;
+}
+.sw-watch {
+  color: #ffcc00;
+}
+
+/* live storm/alert detail — bottom-right (free on the global view; never coexists with placement) */
+.hud--live-detail {
+  bottom: 72px;
+  right: 24px;
+  width: 288px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  border: var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow);
+  padding: 14px;
+}
+.live-metrics {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.live-metric {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: rgba(255, 91, 91, 0.1);
+  border: 1px solid rgba(255, 91, 91, 0.3);
+  border-radius: 10px;
+}
+.live-metric-val {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffb3a0;
+  font-variant-numeric: tabular-nums;
+}
+.live-metric-cap {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  opacity: 0.6;
 }

@@ -1,16 +1,34 @@
 # CLAUDE.md — Borealis
 
 ## What this is
-Borealis is a renewable **site-selection** platform. It runs long-term climatology through
-vertical-specific suitability models to answer "where on Earth should we build solar or wind?" —
-delivering a continuous global resource field (one fixed-scale equirectangular overlay draped on the
-globe) plus ranked candidate sites plus an AI-generated "why this site" briefing, all on one
-interactive CesiumJS 3D globe.
+Borealis is a **weather map you act on**, on a high-fidelity CesiumJS globe. The FRONT experience:
+1. **Land** on one cohesive global climate field (default: temperature) draped on the vivid Bing +
+   World Terrain globe — a striking weather map, no tool chrome.
+2. **Place a building by natural language** ("a coastal hospital in Miami"): an Anthropic call parses
+   `{placeName, buildingType, intent}`, the Cesium ion geocoder resolves it, and a terrain-clamped
+   building appears with an oblique fly-to.
+3. **Run a grounded, ILLUSTRATIVE catastrophe view** at that building — a flood (bathtub inundation
+   over real Cesium World Terrain) or a tornado (particle funnel whose EF intensity + likelihood come
+   from real NOAA SPC climatology) — with an AI hazard-exposure explanation.
+4. **Toggle a LIVE / OBSERVED storm overlay** on the zoomed-out globe (a SEPARATE category from the
+   illustrative sim): real, timestamped active NHC tropical cyclones (rotating spiral glyphs, color-ramped
+   by category), NWS tornado warning/watch polygons (warning red / watch amber), and a live Open-Meteo
+   current wind-flow particle layer. Everything carries its source + observation time; an empty feed is
+   reported honestly ("none active"), never faked. Shows only when zoomed out; detail on click.
 
-**Critical framing (do not drift):** Borealis is NOT a weather forecaster and NOT (currently) an
-operational risk tool. The PRODUCT is "where should this asset go", expressed as relative suitability +
-ranked sites + a trustworthy plain-language explanation. The climatology is the shared INPUT. The user is
-a developer/investor choosing where to deploy capital, not an operator running an existing farm.
+**Suitability is now a CONTEXTUAL layer**, not the landing. The renewable site-selection engine
+(SuitabilityModel + 3 lenses solar/wind/cropland, generic score-and-rank, ranked sites, "why this site"
+briefing) is fully PRESERVED and surfaces when the intent is site-selection — it is no longer the default UI.
+
+**Critical honesty (do not drift):** the flood/tornado views are ILLUSTRATIVE visualizations whose
+magnitude/likelihood are grounded in real elevation (Cesium World Terrain) and real tornado climatology
+(NOAA SPC). They are NOT a physics or meteorology engine and must never read as predictions — every hazard
+view labels scenario, depth/intensity, and data source, and negligible-risk locations are reported honestly
+(no faked tornado). Suitability remains RELATIVE climatology ranking, never bankable yield.
+**Two categories never blur:** the flood/tornado views are ILLUSTRATIVE (sim, grounded but NOT a prediction);
+the live-storms overlay is LIVE/OBSERVED (real, timestamped feeds — NHC/NWS/Open-Meteo). They share no label,
+legend, color ramp, or code path. An empty live feed means "none currently active / feed unavailable" (NWS
+alerts US-only; NHC Atlantic + E/Central Pacific) — never "safe".
 
 **The platform principle:** every vertical/lens is the same pipeline and differs in exactly ONE place.
 A vertical = a resource grid over a region + a SuitabilityModel (climatology -> that domain's score) +
@@ -48,23 +66,117 @@ Energy ships first with TWO lenses (solar, wind) behind one model via params['le
 - `generate_site_briefing(grid_summary, ranked_sites, vertical_meta) -> SiteBriefing`  # structured, given numbers
 - `POST /api/suitability { vertical, region, resolution, params{lens}, weights, top_n }`
       `-> { region, resolution, vertical, metric_units, n_cells, cells, ranked_sites, briefing }`
+- LIVE / OBSERVED read-only feeds (NOT the suitability spine; SEPARATE from the illustrative sim):
+  - `GET /api/storms`  -> active NHC cyclones (id, name, basin, classification, Saffir-Simpson category, position,
+        max_wind_kt, movement, advisory_time) + `as_of` + `source` + `coverage`. (Track/cone GIS = fast-follow.)
+  - `GET /api/alerts`  -> NWS active tornado warning/watch GeoJSON polygons (event, severity, area, issued/expires,
+        geometry) + `as_of` + `coverage`. US-only.
+  - `GET /api/current-wind`  -> coarse global current wind grid `{ bbox, resolution, nx, ny, u, v, speed }` (Open-Meteo,
+        labeled coarse/interpolated) for the wind-flow layer.
+- CONTEXTUAL per-location risk dossier (COMPOSES the suitability + hazard + briefing layers — NOT a new engine):
+  - `POST|GET /api/analysis { lat, lon, building_type, intent, place_name?, elevation_m? }`
+        `-> { location, resource{solar,wind,[crop]}, hazards{flood,tornado,live}, insurance[], summary, disclaimer }`.
+        resource = relative comparator (lenses scored on a small surrounding grid, never bankable yield); flood = elevation
+        read (Cesium terrain, sampled client-side + passed in); tornado = REUSED SPC climatology; live = REUSED NHC/NWS feeds;
+        insurance[]+summary = Anthropic synthesis, ILLUSTRATIVE/EDUCATIONAL (not advice), invents no numbers, degrades to
+        []/null. Cached per location (one call per placement). crop lens only for agri building types (farm/ranch/…).
 
 ResourceCell: `{ lat, lon, values: { <POWER var>: annual_mean } }`
 SuitabilityModel interface: `{ id, name, required_variables, briefing_role,
   metric_units(params), score_cell(cell, params) -> SuitabilityScore }`
 
 ## Status (update as you go)
-Current phase: PIVOT complete + Cesium rendering correction shipped (set ANTHROPIC_API_KEY for live AI;
-set VITE_CESIUM_ION_TOKEN in frontend/.env for the premium Bing/World-Terrain earth)
-- [x] P1–P4: shelve + ResourceProvider/NASA POWER; suitability + /api/suitability; globe; LLM briefing + NL search
-- [x] P5: land/water mask constraint + AOI tiler (regions larger than POWER's 10°/axis cap)
-- [x] P6: agriculture suitability vertical (cropland lens) — proves the platform principle (3 lenses, one spine)
-- [x] P7: re-activated the operational Act 2 — pick a site -> its near-term P10/P50/P90 generation fan
-- [x] P8: **Cesium/resium globe** replaces react-globe.gl — the resource field is now ONE continuous global
-      equirectangular texture (inferno solar / viridis wind, fixed absolute scale + legend), baked from POWER
-      by `scripts/bake_field_textures.py`; + `GET /api/seasonal` (per-site monthly profile)
-- [ ] Remaining seam: Global Wind/Solar Atlas GeoTIFF enrichment (bankable PVOUT / hub-height CF); extra
-      constraints (protected areas, slope); optional GPU wind-particle layer over the field
+Current phase: front-experience repivot to weather-map -> building -> hazard sim (suitability is contextual).
+Set ANTHROPIC_API_KEY for live building-parse + briefings; VITE_CESIUM_ION_TOKEN in frontend/.env for the
+premium Bing/World-Terrain earth + the ion geocoder.
+- [x] P1–P8: site-selection spine + Cesium/resium globe + continuous global field textures (solar/wind/temp,
+      `scripts/bake_field_textures.py`) + `/api/seasonal` (all PRESERVED, now contextual)
+- [x] Phase A: **weather-map landing** — temperature hero field, lens toggle + sites hidden from the landing
+      (suitability code intact, surfaced only by intent)
+- [x] Phase B: **query-placed building** — `POST /api/place` (Anthropic parse) -> ion geocoder ->
+      terrain-clamped extruded-box building (glTF-by-type hook) -> oblique fly-to. Degrades without a key
+      (geocodes the raw query).
+- [x] Phase C: **flood sim** — `hazard/flood.ts` bathtub inundation over real terrain (depthTestAgainstTerrain),
+      +N m presets, animated rise, honesty label, disposed on reset.
+- [x] Phase D: **tornado** — `GET /api/tornado-climatology` (NOAA SPC coarse model + `scripts/build_tornado_climatology.py`
+      for the full 1° grid) drives EF intensity + likelihood; `hazard/tornado.ts` particle funnel + building shake;
+      **negligible-risk locations honestly show no funnel**. (Funnel particle visual needs a Cesium ParticleSystem
+      tuning pass — renders without error but not yet visibly; the data/honesty/label/dispose paths are verified.)
+- [x] Phase E (LIVE, SEPARATE from the sim): **observational live-storms overlay** — `GET /api/storms` (NHC active
+      cyclones + Saffir-Simpson category), `GET /api/alerts` (NWS tornado warning/watch polygons), `GET /api/current-wind`
+      (coarse Open-Meteo current grid), backed by `backend/storms/` (+ `operational/forecast/current_wind.py`). Frontend
+      `hazard/{liveStorms,liveAlerts,windFlow}.ts` + a "🌀 Live storms" toggle, category/warning-watch legend, "as of"
+      timestamp, click-detail. Real, timestamped, LIVE/OBSERVED; shown only zoomed out; empty feed reported honestly;
+      walled off from the ILLUSTRATIVE sim. (NHC track/cone GIS + nicer wind streamlines are documented fast-follows.)
+      LIVE-LAYER BEAUTIFY pass: (1) STORM FILTER — `nhc.is_named_cyclone` keeps only genuine NAMED cyclones at TS
+      strength+ (classification TS/HU/STS/SS or ≥34 kt; drops TD/SD/PTC/DB/LO/WV/EX + invests/unnamed) so the map shows
+      the handful of real systems (also tightens the legend count + dossier proximity). (2) STORM RENDER — each storm is a
+      GEOREFERENCED spiral CLOUD (two ground-draped `ellipse`s at ~3 km height: faint outer canopy + denser inner core
+      with an eye for Cat 3+) at its real STATIC position (only motion = a slow in-place `stRotation` swirl, hemisphere-
+      correct N=CCW/S=CW), sized to an APPROXIMATE wind-field radius (135→370 km by category — documented proxy; the feed
+      has no real radii). Daytime-legible via a near-white cloud body + a soft DARK feathered rim baked into the texture
+      (not additive); far side occluded by the globe; exact-position marker + dark-outlined label on top. (3) WIND —
+      `windFlow.ts` renders nullschool-style STREAMLINES via a TRUE GPU pipeline (`cesium-wind-layer`): particle state in
+      a texture advanced by a fragment shader sampling the wind UV texture, ping-pong FRAMEBUFFER trails (cost O(screen),
+      independent of particle count), one batched `CustomPrimitive` draw. Density = `particlesTextureSize²` (128 → ~16k
+      particles, cheap on GPU); speed colormap via `colors` (teal→green→yellow→white); `lineLength`/`lineWidth` trails.
+      Efficiency: `useViewerBounds` culls off-screen/back-hemisphere particles, the wind UV texture is uploaded once per
+      ~12-min poll (the `addWindFlow` effect re-runs on the grid prop), the lib reuses its own FBOs/buffers, and the layer
+      pauses on `document.hidden`; `destroy()` on toggle-off. (This SUPERSEDES the earlier finding that cesium-wind-layer
+      no-renders on 1.141 — v0.10.1, peer cesium ^1.127, integrates cleanly; the prior CPU `PolylineGlow` streamlines
+      lagged because advection + per-frame buffer rebuilds + ~1k non-batching draws were all CPU-bound.) (4) BASE CONTRAST —
+      when wind is on, `ResourceGlobe` mutes the base imagery (`<ImageryLayer brightness=0.5 saturation=0.55>`) so the
+      streamlines pop on the bright day side; vivid imagery is restored when wind is off. (5) DEFAULTS/TOGGLES — split
+      into independent **Wind (default ON — the hero look)** + **Storms (default OFF, opt-in)** toggles (`windOn`/`stormsOn`,
+      separate polls + gating + legend lines). Storm spiral-cloud visuals are unchanged; only their default visibility did.
+      NOTE: past/forecast TRACK + cone remain NOT rendered (no track geometry in the scalar feed; never fabricated).
+- [x] Phase F (CONTEXTUAL dossier): **per-location risk analysis** — `GET|POST /api/analysis` (`backend/api/analysis.py`)
+      COMPOSES the suitability lenses (energy solar/wind + agri crop) + flood(elevation)/tornado(SPC)/live(NHC+NWS) hazards
+      + an Anthropic insurance+summary synthesis (`generate_analysis_briefing` in `briefing/`), cached per location. Frontend
+      `AnalysisDossier.tsx` + `fetchAnalysis()` (`lib/api.ts`) + `.hud--dossier`: a left glassmorphic panel that opens on
+      placement and closes on reset, with LOCATION / RENEWABLE RESOURCE / HAZARD EXPOSURE / INSURANCE / SUMMARY sections,
+      each carrying its data source + the "relative comparator / illustrative / not advice" honesty labels. The LLM invents
+      no numbers and the whole synthesis degrades to []/null without a key. Tests: `backend/tests/test_analysis.py`.
+- [x] Phase G (detailed building): **type-keyed glTF placed building** — the stylized extruded box is replaced by a
+      detailed model from a CURATED CC0 glTF library (`frontend/public/models/*.glb` + `ATTRIBUTIONS.md`: Quaternius
+      house/hospital/office_tower(Bank)/residential_tower(Flat)/mid_rise(Shop) + 32kda warehouse, all CC0). `/api/place`
+      now returns a richer SPEC (`approx_floors, height_m, footprint_m, style, roof_type, features`) via the SAME Anthropic
+      call; `frontend/src/buildingModels.ts` (`pickBuildingModel`) maps the parsed type→best model + scales it to the
+      parsed real-world height (clamped) + a terrain base offset. `ResourceGlobe.placeBuilding` renders a `model` Entity
+      (PBR materials, `ShadowMode.ENABLED`, accent silhouette so it's distinct), lazily adds Cesium **OSM Buildings**
+      (ion asset, real city context) + sun-driven **shadows** (capped 2048 shadow-map, soft) — both ON only during a
+      placement, OFF on the cinematic globe; one model at a time, disposed on new placement/reset. Honesty: a small
+      "representative model — not the actual structure" label (dossier Location section). Tornado shake + flood + dossier
+      all still consume `{lat,lng,baseHeight}` unchanged. (Text-to-3D generation for unmatched types is a documented
+      seam below — deferred, off by default, needs a new secret.)
+- [ ] Remaining: NHC track/cone (KMZ/shapefile) for storms; Global Wind/Solar Atlas enrichment; NASA-POWER fallback when
+      Open-Meteo 429-rate-limits the per-placement analysis grid; **text-to-3D fallback** (Phase D seam) — behind a flag
+      (`VITE_ENABLE_TEXT_TO_3D` + a backend Meshy/Tripo/Hunyuan proxy needing a new secret): generate a mesh on demand
+      from the parsed spec ONLY when no curated match exists, normalize scale/orientation, cache by spec hash, and fall
+      back to the curated default on slow/fail; more detailed/varied glTF models for the curated library (school/stadium/
+      data-center currently reuse the nearest match + scaling).
+
+## The new flow + hazard honesty contract
+weather-map landing -> NL-query-placed building (Anthropic parse + Cesium ion geocode) -> grounded flood/tornado
+sim. Data sources: Cesium World Terrain (flood inundation), NOAA SPC tornado database (tornado climatology, coarse
+built-in + `build_tornado_climatology.py` for the fine grid), Cesium ion geocoder (geocoding — no new secret).
+Hazards are ILLUSTRATIVE, never predictive: always label scenario + depth/intensity + source; never fake a tornado
+where SPC climatology says risk is negligible. New code: `frontend/src/hazard/{flood,tornado}.ts`,
+`frontend/src/ResourceGlobe.tsx` (geocode/building/hazard control methods), `backend/api/{place,tornado}.py`,
+`backend/data/tornado_climatology.json` (optional), `scripts/build_tornado_climatology.py`, `field/` += a temp field.
+
+**Live layer (DISTINCT category — real, not sim):** LIVE/OBSERVED storm overlay from NHC (active tropical cyclones —
+Atlantic + E/Central Pacific), NWS (active tornado warning/watch polygons — US-only), and Open-Meteo (live surface
+wind — global, coarse). Each item is stamped with `source` + observation/issue time; nothing here is illustrative or
+predicted, and it NEVER reuses the sim's grey funnel/blue flood or the words "illustrative"/"simulate". New code:
+`backend/storms/` (NHC + NWS providers + stdlib TTL cache + pydantic types), `backend/operational/forecast/current_wind.py`,
+`backend/api/{storms,alerts,current_wind}.py` (mounted in `api/main.py`), `frontend/src/hazard/{liveStorms,liveAlerts,
+windFlow}.ts`, `frontend/src/lib/api.ts` (`fetchStorms`/`fetchAlerts`/`fetchCurrentWind`), `ResourceGlobe.tsx`
+(storms/alerts/windGrid props + camera-altitude `onZoomChange` gate), `App.tsx` (toggle + legend + detail + ~12-min poll).
+The illustrative sim and the live overlay never share a label, legend, color ramp, or code path. NOTE: the wind flow now
+uses `cesium-wind-layer` (v0.10.1) — a GPU particle-texture + ping-pong-framebuffer streamline pipeline — driven by the
+`GridWind` reshaped into its `WindData`; density = `particlesTextureSize²`. (This supersedes the earlier note that the lib
+no-renders on 1.141, and the interim CPU `PointPrimitiveCollection`/`PolylineGlow` advections, which were CPU-bound + laggy.)
 
 ## Working philosophy in this repo
 - MVP first. Always keep the app runnable. Build and verify ONE layer at a time.
@@ -84,6 +196,9 @@ set VITE_CESIUM_ION_TOKEN in frontend/.env for the premium Bing/World-Terrain ea
                  (ResourceGrid -> smooth global equirectangular RGBA PNG on a fixed absolute scale)
   registry.py  vertical id -> SuitabilityModel (+ a parallel impact registry for Act 2)
   api/         FastAPI: /health, POST /api/suitability, GET /api/seasonal (entry: api/main.py -> app)
+  storms/      LIVE/OBSERVED feed layer (SEPARATE from the sim + the suitability spine): NHC cyclone (nhc.py)
+                 + NWS alert (nws.py) clients + stdlib TTL cache (cache.py) + pydantic types -> /api/storms,
+                 /api/alerts (read-only). Live current-wind grid lives in operational/forecast/current_wind.py.
   operational/ DEFERRED SECOND ACT (forecast/, energy MW fan, risk, /api/operational/assess)
   tests/  scripts/  (scripts/bake_field_textures.py bakes the global field PNGs -> frontend/public/fields/)
 /frontend      Vite + React + TS; CesiumJS globe via resium (P8) — see src/ResourceGlobe.tsx
@@ -111,6 +226,8 @@ set VITE_CESIUM_ION_TOKEN in frontend/.env for the premium Bing/World-Terrain ea
 - Backend dev: `cd backend && uv run uvicorn api.main:app --reload`
 - Backend tests: `cd backend && uv run pytest`
 - Live spine smoke: `cd backend && uv run python scripts/smoke_suitability.py` (or smoke_resource.py)
+- Live storm feeds smoke: `cd backend && uv run python scripts/smoke_storms.py` (hits NHC/NWS/Open-Meteo;
+  prints active cyclones + alert count + a wind sample with timestamps — empty result is a PASS: none active)
 - Bake the global field textures: `cd backend && uv run python scripts/bake_field_textures.py`
   (per-tile cached/resumable in backend/.cache/; `--bbox lat_min,lon_min,lat_max,lon_max` to scope down)
 - Frontend dev: `cd frontend && npm run dev`
@@ -145,3 +262,6 @@ and mounted, to be revived later. `verticals/energy/solar.py` and `wind.py` are 
 - Constraint layers beyond the land/water mask (shipped): protected areas, slope, grid distance.
 - AOI tiler for bounding boxes larger than POWER's 10°/axis regional cap.
 - Full per-cell pvlib hourly solar simulation; ERA5 backtesting; auth/multi-tenant.
+- Storm forecasting / track prediction of any kind on the live-storms layer — it is OBSERVATION-ONLY (display the
+  current NHC/NWS/Open-Meteo state + timestamp). NHC past/forecast track + cone of uncertainty (KMZ/shapefile -> GeoJSON)
+  and a richer GPU wind-streamline layer are documented FAST-FOLLOWS, not yet built.

@@ -1,29 +1,22 @@
 {
   "resolution": 1.0,
-  "bbox": [
-    -90.0,
-    -180.0,
-    90.0,
-    180.0
-  ],
+  "bbox": [-90.0, -180.0, 90.0, 180.0],
   "fields": {
+    "temp": {
+      "id": "temp",
+      "label": "Temperature @ 2 m",
+      "units": "°C",
+      "vmin": -30.0,
+      "vmax": 45.0,
+      "legend": ["#28328c", "#325faf", "#3c8cd2", "#87c1e2", "#d4e8dc", "#f3d191", "#ec9842", "#dd4e33", "#961e28"]
+    },
     "solar": {
       "id": "solar",
       "label": "Solar irradiance (GHI)",
-      "units": "kWh/m\u00b2/day",
+      "units": "kWh/m²/day",
       "vmin": 2.5,
       "vmax": 8.5,
-      "legend": [
-        "#3c0019",
-        "#690c1e",
-        "#961923",
-        "#bb3c23",
-        "#e05f23",
-        "#ef8b29",
-        "#f9b33f",
-        "#fdd66c",
-        "#fff8cd"
-      ]
+      "legend": ["#3c0019", "#690c1e", "#961923", "#bb3c23", "#e05f23", "#ef8b29", "#f9b33f", "#fdd66c", "#fff8cd"]
     },
     "wind": {
       "id": "wind",
@@ -31,17 +24,7 @@
       "units": "m/s",
       "vmin": 0.0,
       "vmax": 11.0,
-      "legend": [
-        "#1e0f4b",
-        "#21286a",
-        "#25418a",
-        "#226094",
-        "#1c8392",
-        "#28a5a5",
-        "#40c5c5",
-        "#87e0e0",
-        "#dcf8f8"
-      ]
+      "legend": ["#1e0f4b", "#21286a", "#25418a", "#226094", "#1c8392", "#28a5a5", "#40c5c5", "#87e0e0", "#dcf8f8"]
     }
   }
 }

@@ -46,6 +46,24 @@ class Settings(BaseSettings):
     # The ensemble API lives on the ensemble-api.* subdomain (api.* 404s).
     open_meteo_base_url: str = "https://ensemble-api.open-meteo.com/v1/ensemble"
 
+    # Open-Meteo STANDARD forecast endpoint — the LIVE current global wind grid (/api/current-wind).
+    # Distinct from the ensemble + archive URLs above; supports `current=` + multi-point batches.
+    open_meteo_forecast_url: str = "https://api.open-meteo.com/v1/forecast"
+
+    # LIVE / OBSERVED storm feeds (read-only; SEPARATE from the illustrative sim + the suitability spine).
+    # NHC = Atlantic + E/Central Pacific cyclones; NWS = US tornado alerts (requires a User-Agent).
+    nhc_current_storms_url: str = "https://www.nhc.noaa.gov/CurrentStorms.json"
+    nws_alerts_url: str = "https://api.weather.gov/alerts/active"
+    nws_user_agent: str = "Borealis (rishboss0@gmail.com)"
+    storms_cache_ttl_seconds: float = 900.0
+    # Coarse global lattice (degrees) for the live wind-flow layer + its OWN long cache. Open-Meteo's
+    # free tier is location-weighted (each grid point ≈ one "call", capped ~600/min, 10k/day, and the GET
+    # URL 414s above ~700 points). 12° (15×30 = 450 cells) fetches in ≤2 small calls, fits every limit,
+    # and cesium-wind-layer interpolates it into a smooth global flow. Cached for HOURS (synoptic wind
+    # persists, so "current, refreshed ~3-hourly" is honest). Finer needs paced fetching (see current_wind.py).
+    current_wind_resolution: float = 12.0
+    current_wind_cache_ttl_seconds: float = 10800.0  # 3 h
+
 
 @lru_cache
 def get_settings() -> Settings:

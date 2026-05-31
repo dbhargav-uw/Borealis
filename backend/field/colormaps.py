@@ -33,9 +33,21 @@ WIND_ANCHORS: list[Anchor] = [
     (1.0, (220, 248, 248)),   # pale
 ]
 
+# Diverging temperature ramp (the classic weather-map read): deep blue (cold) -> pale (mild) -> deep red (hot).
+TEMP_ANCHORS: list[Anchor] = [
+    (0.0, (40, 50, 140)),     # deep blue (very cold)
+    (0.25, (60, 140, 210)),   # blue
+    (0.45, (180, 225, 235)),  # pale cyan
+    (0.55, (245, 240, 205)),  # warm pale (mild)
+    (0.72, (240, 170, 70)),   # orange
+    (0.88, (220, 75, 50)),    # red
+    (1.0, (150, 30, 40)),     # deep red (very hot)
+]
+
 COLORMAPS: dict[str, list[Anchor]] = {
     "solar": SOLAR_ANCHORS,
     "wind": WIND_ANCHORS,
+    "temp": TEMP_ANCHORS,
 }
 
 
