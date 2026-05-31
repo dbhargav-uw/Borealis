@@ -1,0 +1,4 @@
+torch>=2.0
+gymnasium>=0.29
+numpy>=1.24
+# Box2D envs (e.g. LunarLander-v2) also need: gymnasium[box2d]
