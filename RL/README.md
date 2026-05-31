@@ -1,14 +1,15 @@
 # RL — Actor-Critic
 
-Standalone reinforcement-learning scripts. **Not wired into the Borealis
-application** — this directory has no dependency on the rest of the repo, and
-nothing in the app imports from it. It's a self-contained reference.
-
 ## Contents
 - `actor_critic.py` — Advantage Actor-Critic (A2C) for discrete-action Gym
   environments. A shared-trunk network with a policy head (actor) and a value
   head (critic). Trains on fixed-length rollouts with bootstrapped, advantage-
   normalized policy gradients, a value-regression loss, and an entropy bonus.
+- `train_mps.py` — device-aware training (defaults to Apple-Silicon **MPS**,
+  falls back to CUDA then CPU) that reuses the model from `actor_critic.py` and
+  writes a `.pt` checkpoint with the weights + architecture/config to reload it.
+- `sample.pt` — a sample checkpoint (untrained, CartPole-v1 dims: obs_dim 4,
+  n_actions 2, hidden 128). Load it with `train_mps.load_checkpoint`.
 
 ## Setup
 ```bash
@@ -19,9 +20,20 @@ pip install -r requirements.txt
 
 ## Run
 ```bash
+# CPU/auto trainer with greedy eval
 python actor_critic.py --env CartPole-v1 --episodes 500
 python actor_critic.py --env LunarLander-v2 --episodes 1500 --lr 7e-4   # needs gymnasium[box2d]
 python actor_critic.py --env CartPole-v1 --episodes 500 --render        # render greedy eval
+
+# MPS (Apple Silicon) trainer — saves a checkpoint
+python train_mps.py --env CartPole-v1 --episodes 500 --out checkpoint.pt
+python train_mps.py --device cpu                                        # force a backend
+```
+
+Reload a checkpoint:
+```python
+from train_mps import load_checkpoint
+model = load_checkpoint("sample.pt", device="cpu")
 ```
 
 Key flags: `--gamma`, `--lr`, `--rollout-len`, `--entropy-coef`,

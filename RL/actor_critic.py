@@ -18,12 +18,14 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 
-import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
+
+# gymnasium is imported lazily inside the functions that need an environment, so
+# the model classes can be imported (and checkpoints built/loaded) without it.
 
 
 # ----------------------------------------------------------------------------- #
@@ -113,6 +115,8 @@ class Config:
 
 
 def train(cfg: Config) -> ActorCritic:
+    import gymnasium as gym
+
     torch.manual_seed(cfg.seed)
     np.random.seed(cfg.seed)
 
@@ -190,6 +194,8 @@ def train(cfg: Config) -> ActorCritic:
 # ----------------------------------------------------------------------------- #
 @torch.no_grad()
 def evaluate(model: ActorCritic, env_id: str, episodes: int = 10, render: bool = False) -> float:
+    import gymnasium as gym
+
     env = gym.make(env_id, render_mode="human" if render else None)
     total = 0.0
     for _ in range(episodes):
